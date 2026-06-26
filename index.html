@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#15130F" />
+<title>Lexicon — A Modern Encyclopedia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..700&family=Source+Sans+3:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="app-frame" aria-hidden="true"></div>
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand" id="brand-home-btn" role="button" tabindex="0" aria-label="Go to home">
+        <svg class="brand-mark" viewBox="0 0 32 32" fill="none">
+          <circle cx="16" cy="16" r="15" fill="#1D1A14"/>
+          <circle cx="16" cy="16" r="14.5" stroke="#C2553D" stroke-width="1.2"/>
+          <circle cx="16" cy="16" r="11" stroke="#D4AF6A" stroke-width="0.8"/>
+          <path d="M16 9 L16 23 M11 11 L21 21 M21 11 L11 21" stroke="#D4AF6A" stroke-width="0.7" opacity="0.5"/>
+          <text x="16" y="20.5" font-family="Fraunces, serif" font-size="13" font-style="italic" font-weight="600" fill="#ECE4D3" text-anchor="middle">L</text>
+        </svg>
+        <span class="brand-text">Lexicon</span>
+      </div>
+      <div class="view-toggle" data-active="atoz" role="tablist" aria-label="Browse mode">
+        <div class="toggle-slider"></div>
+        <button class="toggle-btn active" data-view="atoz" role="tab" aria-selected="true">A–Z</button>
+        <button class="toggle-btn" data-view="category" role="tab" aria-selected="false">Categories</button>
+      </div>
+      <button class="search-btn" id="search-btn" aria-label="Search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <!-- HOME VIEW -->
+    <section id="view-home" class="view active">
+      <div class="content-wrap home-wrap">
+        <p class="home-section-label">Discover</p>
+        <div class="featured-card-stage" id="featured-card-stage">
+          <!-- featured card injected here -->
+        </div>
+
+        <p class="home-section-label home-recent-label">Recently Learned</p>
+        <div class="recent-list-frame">
+          <div class="recent-list" id="recent-list">
+            <!-- recent entries injected here -->
+          </div>
+          <p class="recent-empty-state" id="recent-empty-state">Entries you open will appear here.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- A-Z VIEW -->
+    <section id="view-atoz" class="view">
+      <div class="content-wrap">
+        <div class="list-pane" id="entry-list"></div>
+      </div>
+      <!-- Signature element: dictionary thumb-index rail -->
+      <nav class="az-rail" id="az-rail" aria-label="Jump to letter"></nav>
+    </section>
+
+    <!-- CATEGORY VIEW -->
+    <section id="view-category" class="view">
+      <div class="content-wrap category-grid" id="category-grid"></div>
+    </section>
+
+    <!-- CATEGORY DETAIL (A-Z within one category) -->
+    <section id="view-category-detail" class="view">
+      <div class="category-detail-header">
+        <button class="back-btn" id="back-to-categories">
+          <span class="back-btn-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></span>
+          Categories
+        </button>
+        <h1 class="category-detail-title" id="category-detail-title"></h1>
+        <p class="category-detail-desc" id="category-detail-desc"></p>
+      </div>
+      <div class="content-wrap">
+        <div class="list-pane" id="category-entry-list"></div>
+      </div>
+    </section>
+
+    <!-- ENTRY PAGE -->
+    <section id="view-entry" class="view">
+      <div class="entry-page">
+        <div class="entry-page-sheet">
+          <div class="entry-page-sheet-inner">
+            <button class="back-btn" id="back-from-entry">
+              <span class="back-btn-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></span>
+              Back
+            </button>
+            <div class="entry-page-content" id="entry-page-content"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SEARCH OVERLAY -->
+    <section id="view-search" class="view">
+      <div class="search-header">
+        <div class="search-input-wrap">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="search-input" class="search-input" placeholder="Search the encyclopedia…" autocomplete="off" autocorrect="off" spellcheck="false" />
+          <button class="search-clear-btn" id="search-clear-btn" aria-label="Clear search" hidden>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <button class="search-cancel-btn" id="search-cancel-btn">Cancel</button>
+      </div>
+      <div class="content-wrap">
+        <div class="list-pane" id="search-results"></div>
+        <div class="search-empty-state" id="search-empty-state">
+          <p>Start typing to search across every category.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="data.bundle.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
