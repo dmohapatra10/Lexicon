@@ -244,7 +244,7 @@ function featuredCardHTML(entry) {
         <span class="featured-card-tag" style="background:var(--acc-${cat.accent}-bg); color:var(--acc-${cat.accent});">${cat.tag}</span>
         <span class="featured-card-random-label">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M16 3h5v5M21 3l-9 9M21 16v5h-5M3 8V3h5M3 16v5h5M8 21l9-9"/></svg>
-          Discover
+          Random pick
         </span>
       </div>
       <h2 class="featured-card-headword">${entry.word}</h2>
@@ -419,6 +419,7 @@ function renderSearchResults(query) {
 
 function openSearch() {
   stopFeaturedRotation();
+  document.querySelector(".topbar-backing").classList.add("hidden-for-search");
   switchView("view-search");
   renderSearchResults(els.searchInput.value);
   // focus after the view becomes visible so mobile keyboards open reliably
@@ -426,6 +427,7 @@ function openSearch() {
 }
 
 function closeSearch() {
+  document.querySelector(".topbar-backing").classList.remove("hidden-for-search");
   switchView("view-atoz");
   els.toggleBtns.forEach(b => {
     const isAtoZ = b.dataset.view === "atoz";
