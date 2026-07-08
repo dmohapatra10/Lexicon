@@ -14,6 +14,7 @@ const els = {
   categoryDetailDesc: document.getElementById("category-detail-desc"),
   categoryEntryList: document.getElementById("category-entry-list"),
   entryPageContent: document.getElementById("entry-page-content"),
+  entryPageHeroImg: document.getElementById("entry-page-hero-img"),
   backToCategories: document.getElementById("back-to-categories"),
   backFromEntry: document.getElementById("back-from-entry"),
   searchBtn: document.getElementById("search-btn"),
@@ -35,6 +36,11 @@ let cameFromView = "view-home";
 function categoryById(id) {
   return CATEGORIES.find(c => c.id === id);
 }
+
+function categoryImagePath(categoryId) {
+  return `assets/categories/${categoryId}.jpg`;
+}
+
 
 // ---------- Recently learned (persisted) ----------
 const RECENT_KEY = "lexicon:recentlyViewed";
@@ -209,8 +215,11 @@ function openEntry(word, list, originView) {
   const cat = categoryById(entry.category);
   cameFromView = originView;
 
+  els.entryPageHeroImg.src = categoryImagePath(cat.id);
   els.entryPageContent.innerHTML = `
-    <span class="entry-page-tag">${cat.name}</span>
+    <div class="entry-page-tag-row">
+      <span class="entry-page-tag">${cat.name}</span>
+    </div>
     <h1 class="entry-page-headword">${entry.word}</h1>
     <div class="entry-page-letter-rule">
       <span class="rule-letter">${entry.word[0].toUpperCase()}</span>
@@ -240,6 +249,10 @@ function featuredCardHTML(entry) {
   const cat = categoryById(entry.category);
   return `
     <div class="featured-card" tabindex="0" role="button" data-word="${entry.word}">
+      <div class="featured-card-image">
+        <img src="${categoryImagePath(cat.id)}" alt="" loading="lazy">
+      </div>
+      <div class="featured-card-body">
       <div class="featured-card-top">
         <span class="featured-card-tag" style="background:var(--acc-${cat.accent}-bg); color:var(--acc-${cat.accent});">${cat.tag}</span>
         <span class="featured-card-random-label">
@@ -255,6 +268,7 @@ function featuredCardHTML(entry) {
       </span>
       <div class="featured-progress">
         ${featuredPool.map((_, i) => `<span class="featured-progress-dot ${i === featuredIndex ? "current" : ""}"></span>`).join("")}
+      </div>
       </div>
     </div>
   `;

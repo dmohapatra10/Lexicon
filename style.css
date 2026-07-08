@@ -145,50 +145,17 @@ button {
   inset: 0;
   z-index: 100;
   pointer-events: none;
-  border-top: 9px solid var(--frame-gold);
-  border-right: 1.5px solid var(--frame-gold);
-  border-bottom: 1.5px solid var(--frame-gold);
-  border-left: 9px solid var(--frame-gold);
-  box-shadow: inset 0 0 0 1px rgba(212, 175, 106, 0.08);
-}
-
-.app-frame::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 9px;
-  background: linear-gradient(90deg,
-    rgba(212,175,106,0.3) 0%,
-    rgba(255,237,196,0.5) 50%,
-    rgba(212,175,106,0.3) 100%);
-  mix-blend-mode: overlay;
-}
-
-.app-frame::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 9px;
-  background: linear-gradient(180deg,
-    rgba(212,175,106,0.3) 0%,
-    rgba(255,237,196,0.5) 50%,
-    rgba(212,175,106,0.3) 100%);
-  mix-blend-mode: overlay;
+  border: 9px solid var(--frame-gold);
+  border-radius: 18px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,237,210,0.25),
+    inset 0 1px 0 rgba(255,237,210,0.35),
+    inset 0 -1px 0 rgba(80,50,20,0.3),
+    0 0 0 1px rgba(80,50,20,0.15);
 }
 
 .app-frame-corner {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 23px;
-  height: 23px;
-  z-index: 49;
-  pointer-events: none;
-  background: var(--frame-gold);
+  display: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -211,7 +178,7 @@ button {
 }
 
 .topbar {
-  margin: 16px 12px 0;
+  margin: 9px 12px 0;
   background: linear-gradient(155deg, var(--gold-soft), var(--gold));
   border: 2px solid var(--gold-dim);
   border-radius: 22px;
@@ -459,17 +426,16 @@ button {
 /* Gilt spine-tab rail (signature element) */
 .az-rail {
   position: fixed;
-  right: 0;
+  right: 9px;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
   flex-direction: column;
   z-index: 40;
   background: var(--surface);
-  border-radius: 16px 0 0 16px;
+  border-radius: 14px;
   padding: 8px 5px 8px 8px;
   border: 1px solid var(--hairline);
-  border-right: none;
   box-shadow: var(--shadow-md);
 }
 
@@ -895,11 +861,30 @@ button {
   background: linear-gradient(155deg, var(--gold-soft), var(--gold));
   border: 2px solid var(--gold-dim);
   border-radius: 20px;
-  padding: 26px 24px;
+  padding: 0;
+  overflow: hidden;
   cursor: pointer;
   box-shadow: 0 10px 28px rgba(0,0,0,0.4), 0 0 0 1px rgba(212,175,106,0.12);
   transition: transform 0.25s cubic-bezier(0.25,0.8,0.25,1), box-shadow 0.25s ease, border-color 0.25s ease, opacity 0.5s ease;
   opacity: 1;
+}
+
+.featured-card-image {
+  width: 100%;
+  aspect-ratio: 21 / 9;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(0,0,0,0.15);
+}
+
+.featured-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.featured-card-body {
+  padding: 22px 24px 26px;
 }
 
 .featured-card.fade-out {
@@ -1058,34 +1043,59 @@ button {
   position: relative;
 }
 
+.entry-page-hero {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 21 / 9;
+  overflow: hidden;
+  background: var(--paper-deep);
+}
+
+.entry-page-hero img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.back-btn-overlay {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  background: rgba(14,12,9,0.55);
+  color: var(--ink);
+  border-color: rgba(255,255,255,0.18);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.back-btn-overlay .back-btn-icon {
+  background: rgba(255,255,255,0.16);
+  color: var(--ink);
+}
+.back-btn-overlay:hover {
+  background: rgba(14,12,9,0.75);
+  color: var(--gold-soft);
+  border-color: rgba(255,255,255,0.3);
+}
+.back-btn-overlay:hover .back-btn-icon {
+  background: rgba(255,255,255,0.26);
+}
+
 .entry-page-sheet-inner {
   max-width: var(--max-width);
   margin: 0 auto;
   padding: 20px 24px 80px;
 }
 
-.entry-page .back-btn {
-  color: var(--light-ink);
-  border-color: var(--light-hairline);
-  background: var(--light-surface);
-  box-shadow: 0 1px 3px rgba(37,31,22,0.08);
-}
-.entry-page .back-btn .back-btn-icon {
-  background: var(--light-oxblood);
-  color: var(--light-surface);
-}
-.entry-page .back-btn:hover {
-  color: var(--light-oxblood);
-  border-color: var(--frame-gold);
-  box-shadow: 0 4px 12px rgba(156,122,53,0.2);
-}
-.entry-page .back-btn:hover .back-btn-icon {
-  background: #6E2D1E;
-}
-
 .entry-page-content {
   padding-top: 22px;
   position: relative;
+}
+
+.entry-page-tag-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .entry-page-tag {
@@ -1172,7 +1182,7 @@ button {
   .category-card { padding: 18px 16px; }
 
   /* Header: tighten everything else so the toggle can stay legible */
-  .topbar { margin: 14px 8px 0; border-radius: 18px; }
+  .topbar { margin: 9px 8px 0; border-radius: 18px; }
   .topbar-inner { padding: 10px 12px; gap: 8px; }
   .brand-text { display: none; }
   .brand-mark { width: 24px; height: 24px; }
