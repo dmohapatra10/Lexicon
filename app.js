@@ -233,22 +233,24 @@ function openEntry(word, list, originView) {
   recordRecentlyViewed(entry.word);
 }
 
-// ---------- Home: Featured card rotation ----------
+// ---------- Home: Featured card carousel ----------
 const FEATURED_ROTATE_MS = 5000;
 const FEATURED_POOL_SIZE = 5;
 let featuredPool = [];
 let featuredIndex = 0;
 let featuredTimer = null;
+let featuredResumeTimer = null;
+let featuredIsInteracting = false;
 
 function buildFeaturedPool() {
   featuredPool = getRandomEntries(FEATURED_POOL_SIZE);
   featuredIndex = 0;
 }
 
-function featuredCardHTML(entry) {
+function featuredCardHTML(entry, i) {
   const cat = categoryById(entry.category);
   return `
-    <div class="featured-card" tabindex="0" role="button" data-word="${entry.word}">
+    <div class="featured-card" tabindex="0" role="button" data-word="${entry.word}" data-index="${i}">
       <div class="featured-card-image">
         <img src="${categoryImagePath(cat.id)}" alt="" loading="lazy">
       </div>
@@ -266,53 +268,135 @@ function featuredCardHTML(entry) {
         Read the full entry
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 18l6-6-6-6"/></svg>
       </span>
-      <div class="featured-progress">
-        ${featuredPool.map((_, i) => `<span class="featured-progress-dot ${i === featuredIndex ? "current" : ""}"></span>`).join("")}
-      </div>
       </div>
     </div>
   `;
 }
 
-function renderFeatured(animate) {
-  if (!featuredPool.length) buildFeaturedPool();
-  const entry = featuredPool[featuredIndex];
+function featuredStageHTML() {
+  const cards = featuredPool.map((entry, i) => featuredCardHTML(entry, i)).join("");
+  const dots = featuredPool.map((_, i) => `<span class="featured-progress-dot ${i === featuredIndex ? "current" : ""}"></span>`).join("");
+  return `
+    <button class="featured-nav-btn featured-nav-prev" aria-label="Previous">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="featured-card-track" id="featured-card-track">${cards}</div>
+    <button class="featured-nav-btn featured-nav-next" aria-label="Next">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+    <div class="featured-progress">${dots}</div>
+  `;
+}
 
-  if (!animate) {
-    els.featuredCardStage.innerHTML = featuredCardHTML(entry);
-    attachFeaturedCardListener();
+function renderFeatured() {
+  if (!featuredPool.length) buildFeaturedPool();
+  els.featuredCardStage.innerHTML = featuredStageHTML();
+  attachFeaturedCardListeners();
+  scrollFeaturedTo(featuredIndex, false);
+}
+
+function scrollFeaturedTo(index, smooth) {
+  const track = document.getElementById("featured-card-track");
+  if (!track) return;
+  const card = track.children[index];
+  if (!card) return;
+  track.scrollTo({ left: card.offsetLeft, behavior: smooth ? "smooth" : "auto" });
+  updateFeaturedDots(index);
+}
+
+function updateFeaturedDots(index) {
+  featuredIndex = index;
+  const dots = els.featuredCardStage.querySelectorAll(".featured-progress-dot");
+  dots.forEach((dot, i) => dot.classList.toggle("current", i === index));
+}
+
+function attachFeaturedCardListeners() {
+  const track = document.getElementById("featured-card-track");
+  if (!track) return;
+
+  track.querySelectorAll(".featured-card").forEach(card => {
+    const open = () => openEntry(card.dataset.word, ENTRIES, "view-home");
+    card.addEventListener("click", open);
+    card.addEventListener("keydown", e => { if (e.key === "Enter") open(); });
+  });
+
+  const prevBtn = els.featuredCardStage.querySelector(".featured-nav-prev");
+  const nextBtn = els.featuredCardStage.querySelector(".featured-nav-next");
+  prevBtn.addEventListener("click", () => { pauseThenResumeFeatured(); goFeatured(-1); });
+  nextBtn.addEventListener("click", () => { pauseThenResumeFeatured(); goFeatured(1); });
+
+  // Detect manual swipe/scroll and keep the dots + index in sync,
+  // and briefly pause auto-rotation so it doesn't fight the user's swipe.
+  let scrollDebounce = null;
+  let featuredEndTimer = null;
+  track.addEventListener("scroll", () => {
+    featuredIsInteracting = true;
+    stopFeaturedRotation();
+    clearTimeout(scrollDebounce);
+    clearTimeout(featuredEndTimer);
+    scrollDebounce = setTimeout(() => {
+      const cardWidth = track.children[0] ? track.children[0].offsetWidth + 14 : track.clientWidth;
+      const idx = Math.round(track.scrollLeft / cardWidth);
+      const clamped = Math.max(0, Math.min(idx, featuredPool.length - 1));
+      updateFeaturedDots(clamped);
+      featuredIsInteracting = false;
+
+      if (clamped === featuredPool.length - 1) {
+        // User has swiped all the way to the last card — after a brief
+        // pause, loop around to a fresh set rather than leaving them stuck.
+        featuredEndTimer = setTimeout(() => {
+          const lastWord = featuredPool[clamped] ? featuredPool[clamped].word : null;
+          featuredPool = getRandomEntries(FEATURED_POOL_SIZE, lastWord ? [lastWord] : []);
+          featuredIndex = 0;
+          renderFeatured();
+          startFeaturedRotation();
+        }, 900);
+      } else {
+        pauseThenResumeFeatured();
+      }
+    }, 120);
+  }, { passive: true });
+}
+
+function goFeatured(direction) {
+  const track = document.getElementById("featured-card-track");
+  if (!track) return;
+  const next = featuredIndex + direction;
+
+  if (next >= featuredPool.length) {
+    // Reached the end going forward — start a new set from the beginning.
+    const lastWord = featuredPool[featuredIndex] ? featuredPool[featuredIndex].word : null;
+    featuredPool = getRandomEntries(FEATURED_POOL_SIZE, lastWord ? [lastWord] : []);
+    featuredIndex = 0;
+    renderFeatured();
     return;
   }
 
-  const existing = els.featuredCardStage.querySelector(".featured-card");
-  if (existing) {
-    existing.classList.add("fade-out");
-    setTimeout(() => {
-      els.featuredCardStage.innerHTML = featuredCardHTML(entry);
-      attachFeaturedCardListener();
-    }, 320);
-  } else {
-    els.featuredCardStage.innerHTML = featuredCardHTML(entry);
-    attachFeaturedCardListener();
-  }
+  const wrapped = next < 0 ? featuredPool.length - 1 : next;
+  scrollFeaturedTo(wrapped, true);
 }
 
-function attachFeaturedCardListener() {
-  const card = els.featuredCardStage.querySelector(".featured-card");
-  if (!card) return;
-  const open = () => openEntry(card.dataset.word, ENTRIES, "view-home");
-  card.addEventListener("click", open);
-  card.addEventListener("keydown", e => { if (e.key === "Enter") open(); });
+function pauseThenResumeFeatured() {
+  stopFeaturedRotation();
+  clearTimeout(featuredResumeTimer);
+  featuredResumeTimer = setTimeout(() => {
+    if (document.getElementById("view-home").classList.contains("active")) {
+      startFeaturedRotation();
+    }
+  }, FEATURED_ROTATE_MS);
 }
 
 function advanceFeatured() {
+  if (featuredIsInteracting) return;
   const lastWord = featuredPool[featuredIndex] ? featuredPool[featuredIndex].word : null;
-  featuredIndex++;
-  if (featuredIndex >= featuredPool.length) {
+  const nextIndex = featuredIndex + 1;
+  if (nextIndex >= featuredPool.length) {
     featuredPool = getRandomEntries(FEATURED_POOL_SIZE, lastWord ? [lastWord] : []);
     featuredIndex = 0;
+    renderFeatured();
+  } else {
+    scrollFeaturedTo(nextIndex, true);
   }
-  renderFeatured(true);
 }
 
 function startFeaturedRotation() {
@@ -333,6 +417,7 @@ document.addEventListener("visibilitychange", () => {
   } else if (document.getElementById("view-home").classList.contains("active")) {
     startFeaturedRotation();
   }
+
 });
 
 // ---------- Home: Recently learned ----------
