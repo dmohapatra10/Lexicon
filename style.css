@@ -439,6 +439,15 @@ button {
   padding: 8px 5px 8px 8px;
   border: 1px solid var(--hairline);
   box-shadow: var(--shadow-md);
+  max-height: 80vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  touch-action: none;
+}
+.az-rail::-webkit-scrollbar {
+  display: none;
 }
 
 .az-rail-letter {
@@ -468,6 +477,32 @@ button {
   background: linear-gradient(155deg, var(--gold-soft), var(--gold));
   transform: scale(1.3) translateX(-2px);
   box-shadow: 0 0 10px rgba(212,175,106,0.6), 0 1px 4px rgba(0,0,0,0.4);
+}
+
+/* Magnifier bubble shown while dragging along the A-Z rail */
+.az-rail-magnifier {
+  position: fixed;
+  z-index: 60;
+  width: 64px;
+  height: 64px;
+  border-radius: 50% 50% 50% 4px;
+  background: linear-gradient(155deg, var(--gold-soft), var(--gold));
+  color: var(--paper-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 1.9rem;
+  font-weight: 600;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,237,210,0.3);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.6);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+.az-rail-magnifier.visible {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
 }
 
 /* ============================================

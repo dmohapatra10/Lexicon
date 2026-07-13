@@ -9,6 +9,7 @@ const els = {
   toggleBtns: document.querySelectorAll(".toggle-btn"),
   entryList: document.getElementById("entry-list"),
   azRail: document.getElementById("az-rail"),
+  azRailMagnifier: document.getElementById("az-rail-magnifier"),
   categoryGrid: document.getElementById("category-grid"),
   categoryDetailTitle: document.getElementById("category-detail-title"),
   categoryDetailDesc: document.getElementById("category-detail-desc"),
@@ -31,6 +32,8 @@ const els = {
 
 let activeCategoryId = null;
 let cameFromView = "view-home";
+let cameFromScrollY = 0;
+let categoryGridScrollY = 0;
 
 // ---------- Helpers ----------
 function categoryById(id) {
@@ -128,12 +131,90 @@ function renderAZRail(groups) {
     return `<div class="az-rail-letter ${has ? "has-entries" : ""}" data-letter="${letter}">${letter}</div>`;
   }).join("");
 
-  els.azRail.querySelectorAll(".az-rail-letter.has-entries").forEach(el => {
-    el.addEventListener("click", () => {
-      const target = document.getElementById(`letter-${el.dataset.letter}`);
-      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+  attachAZRailScanning();
+}
+
+function jumpToLetter(letter, smooth) {
+  const target = document.getElementById(`letter-${letter}`);
+  if (target) target.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
+}
+
+// Supports both a simple tap on a letter and a press-and-drag "scan" gesture
+// along the whole rail (like the iOS Contacts A-Z index), showing a large
+// magnified bubble of the current letter beside the rail while dragging so
+// the user's own finger doesn't block their view of it.
+function attachAZRailScanning() {
+  let isDragging = false;
+  let lastLetter = null;
+
+  function letterFromPoint(clientX, clientY) {
+    const el = document.elementFromPoint(clientX, clientY);
+    if (el && el.classList && el.classList.contains("az-rail-letter") && el.classList.contains("has-entries")) {
+      return el;
+    }
+    // Finger may drift slightly off individual letter elements while dragging;
+    // fall back to the closest letter by vertical position within the rail.
+    const letters = [...els.azRail.querySelectorAll(".az-rail-letter.has-entries")];
+    let closest = null;
+    let closestDist = Infinity;
+    for (const l of letters) {
+      const rect = l.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      const dist = Math.abs(midY - clientY);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closest = l;
+      }
+    }
+    return closest;
+  }
+
+  function showMagnifier(letterEl) {
+    const rect = letterEl.getBoundingClientRect();
+    els.azRailMagnifier.textContent = letterEl.dataset.letter;
+    els.azRailMagnifier.style.top = `${rect.top + rect.height / 2}px`;
+    els.azRailMagnifier.style.left = `${rect.left - 22}px`;
+    els.azRailMagnifier.classList.add("visible");
+  }
+
+  function hideMagnifier() {
+    els.azRailMagnifier.classList.remove("visible");
+  }
+
+  function handleMove(clientX, clientY, smooth) {
+    const letterEl = letterFromPoint(clientX, clientY);
+    if (!letterEl) return;
+    const letter = letterEl.dataset.letter;
+    showMagnifier(letterEl);
+    if (letter !== lastLetter) {
+      lastLetter = letter;
+      jumpToLetter(letter, smooth);
+    }
+  }
+
+  els.azRail.addEventListener("pointerdown", (e) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    isDragging = true;
+    lastLetter = null;
+    els.azRail.setPointerCapture(e.pointerId);
+    handleMove(e.clientX, e.clientY, false);
+    e.preventDefault();
   });
+
+  els.azRail.addEventListener("pointermove", (e) => {
+    if (!isDragging) return;
+    handleMove(e.clientX, e.clientY, false);
+  });
+
+  function endDrag(e) {
+    if (!isDragging) return;
+    isDragging = false;
+    hideMagnifier();
+    try { els.azRail.releasePointerCapture(e.pointerId); } catch (err) {}
+  }
+
+  els.azRail.addEventListener("pointerup", endDrag);
+  els.azRail.addEventListener("pointercancel", endDrag);
 }
 
 // Scroll-spy for the rail: highlight current letter
@@ -142,9 +223,13 @@ function setupScrollSpy() {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
         const letter = entry.target.id.replace("letter-", "");
+        const currentEl = els.azRail.querySelector(`.az-rail-letter[data-letter="${letter}"]`);
         els.azRail.querySelectorAll(".az-rail-letter").forEach(el => {
           el.classList.toggle("current", el.dataset.letter === letter);
         });
+        if (currentEl) {
+          currentEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
       }
     });
   }, { rootMargin: "-10% 0px -70% 0px" });
@@ -179,6 +264,7 @@ function renderCategoryGrid() {
 
 function openCategory(catId) {
   stopFeaturedRotation();
+  categoryGridScrollY = window.scrollY;
   activeCategoryId = catId;
   const cat = categoryById(catId);
   const entries = ENTRIES.filter(e => e.category === catId);
@@ -211,6 +297,7 @@ function attachEntryRowListeners(container, list, originView) {
 
 function openEntry(word, list, originView) {
   stopFeaturedRotation();
+  cameFromScrollY = window.scrollY;
   const entry = list.find(e => e.word === word) || ENTRIES.find(e => e.word === word);
   const cat = categoryById(entry.category);
   cameFromView = originView;
@@ -561,6 +648,19 @@ function switchView(viewId) {
   window.scrollTo(0, 0);
 }
 
+function restoreScroll(y) {
+  // Defer past the current paint cycle so the newly-shown view has fully
+  // finished layout (correct scrollHeight) before we try to scroll to y,
+  // then re-assert once more shortly after in case anything (e.g. an
+  // image finishing its layout) nudges the page height afterward.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: y, left: 0, behavior: "auto" });
+      setTimeout(() => window.scrollTo({ top: y, left: 0, behavior: "auto" }), 60);
+    });
+  });
+}
+
 els.toggleBtns.forEach(btn => {
   btn.addEventListener("click", () => {
     stopFeaturedRotation();
@@ -574,10 +674,12 @@ els.toggleBtns.forEach(btn => {
 
 els.backToCategories.addEventListener("click", () => {
   switchView("view-category");
+  restoreScroll(categoryGridScrollY);
 });
 
 els.backFromEntry.addEventListener("click", () => {
   switchView(cameFromView);
+  restoreScroll(cameFromScrollY);
   if (cameFromView === "view-home") {
     startFeaturedRotation();
   }
