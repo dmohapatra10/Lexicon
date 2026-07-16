@@ -31,7 +31,6 @@ const els = {
   navDrawer: document.getElementById("nav-drawer"),
   navDrawerBackdrop: document.getElementById("nav-drawer-backdrop"),
   navDrawerClose: document.getElementById("nav-drawer-close"),
-  topbarSearchTrigger: document.getElementById("topbar-search-trigger"),
   homeCategoryGrid: document.getElementById("home-category-grid"),
 };
 
@@ -712,7 +711,6 @@ function closeSearch() {
 }
 
 els.searchBtn.addEventListener("click", openSearch);
-els.topbarSearchTrigger.addEventListener("click", openSearch);
 els.searchCancelBtn.addEventListener("click", closeSearch);
 
 els.searchInput.addEventListener("input", () => {
