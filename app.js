@@ -6,7 +6,6 @@ const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
 const els = {
   views: document.querySelectorAll(".view"),
-  toggleBtns: document.querySelectorAll(".toggle-btn"),
   entryList: document.getElementById("entry-list"),
   azRail: document.getElementById("az-rail"),
   azRailMagnifier: document.getElementById("az-rail-magnifier"),
@@ -28,6 +27,12 @@ const els = {
   featuredCardStage: document.getElementById("featured-card-stage"),
   recentList: document.getElementById("recent-list"),
   recentEmptyState: document.getElementById("recent-empty-state"),
+  hamburgerBtn: document.getElementById("hamburger-btn"),
+  navDrawer: document.getElementById("nav-drawer"),
+  navDrawerBackdrop: document.getElementById("nav-drawer-backdrop"),
+  navDrawerClose: document.getElementById("nav-drawer-close"),
+  topbarSearchTrigger: document.getElementById("topbar-search-trigger"),
+  homeCategoryGrid: document.getElementById("home-category-grid"),
 };
 
 let activeCategoryId = null;
@@ -73,6 +78,29 @@ function recordRecentlyViewed(word) {
   words = words.slice(0, RECENT_MAX);
   saveRecentWords(words);
   renderRecent();
+}
+
+// ---------- Bookmarks (persisted, decorative toggle on the Recently Viewed rows) ----------
+const SAVED_KEY = "lexicon:savedWords";
+
+function loadSavedWords() {
+  try {
+    const raw = localStorage.getItem(SAVED_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function toggleSavedWord(word) {
+  let words = loadSavedWords();
+  if (words.includes(word)) {
+    words = words.filter(w => w !== word);
+  } else {
+    words.unshift(word);
+  }
+  try { localStorage.setItem(SAVED_KEY, JSON.stringify(words)); } catch (e) {}
+  return words.includes(word);
 }
 
 function getRandomEntries(n, excludeWords = []) {
@@ -257,6 +285,33 @@ function renderCategoryGrid() {
   }).join("");
 
   els.categoryGrid.querySelectorAll(".category-card").forEach(card => {
+    card.addEventListener("click", () => openCategory(card.dataset.category));
+    card.addEventListener("keydown", e => { if (e.key === "Enter") openCategory(card.dataset.category); });
+  });
+}
+
+// ---------- Render: Home category tiles (curated subset, links to full grid) ----------
+const HOME_CATEGORY_IDS = ["science", "history", "mythology", "geography", "art", "literature", "philosophy", "food"];
+
+function renderHomeCategories() {
+  if (!els.homeCategoryGrid) return;
+  const ids = HOME_CATEGORY_IDS.filter(id => categoryById(id));
+  const cats = ids.length ? ids.map(categoryById) : CATEGORIES.slice(0, 8);
+
+  els.homeCategoryGrid.innerHTML = cats.map(cat => {
+    const count = ENTRIES.filter(e => e.category === cat.id).length;
+    return `
+      <div class="home-category-card" tabindex="0" role="button" data-category="${cat.id}" aria-label="${cat.name}">
+        <img src="${categoryImagePath(cat.id)}" alt="" loading="lazy">
+        <div class="home-category-card-label">
+          <span class="home-category-card-name">${cat.name}</span>
+          <span class="home-category-card-count">${count} Article${count === 1 ? "" : "s"}</span>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  els.homeCategoryGrid.querySelectorAll(".home-category-card").forEach(card => {
     card.addEventListener("click", () => openCategory(card.dataset.category));
     card.addEventListener("keydown", e => { if (e.key === "Enter") openCategory(card.dataset.category); });
   });
@@ -507,7 +562,24 @@ document.addEventListener("visibilitychange", () => {
 
 });
 
-// ---------- Home: Recently learned ----------
+// ---------- Home: Recently viewed ----------
+function recentRowHTML(entry) {
+  const cat = categoryById(entry.category);
+  const saved = loadSavedWords().includes(entry.word);
+  return `
+    <div class="recent-row" tabindex="0" data-word="${entry.word}" role="button">
+      <div class="recent-row-thumb"><img src="${categoryImagePath(cat.id)}" alt="" loading="lazy"></div>
+      <div class="recent-row-main">
+        <span class="recent-row-title">${entry.word}</span>
+        <span class="recent-row-tag accent-text-${cat.accent}">${cat.name}</span>
+      </div>
+      <button class="recent-row-bookmark ${saved ? "saved" : ""}" data-word="${entry.word}" aria-label="Bookmark ${entry.word}" aria-pressed="${saved}">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4h12v17l-6-4-6 4V4z"/></svg>
+      </button>
+    </div>
+  `;
+}
+
 function renderRecent() {
   const words = loadRecentWords();
 
@@ -522,8 +594,25 @@ function renderRecent() {
     .map(w => ENTRIES.find(e => e.word === w))
     .filter(Boolean);
 
-  els.recentList.innerHTML = entries.map(entryRowHTML).join("");
-  attachEntryRowListeners(els.recentList, entries, "view-home");
+  els.recentList.innerHTML = entries.map(recentRowHTML).join("");
+
+  els.recentList.querySelectorAll(".recent-row").forEach(row => {
+    const open = (e) => {
+      if (e.target.closest(".recent-row-bookmark")) return;
+      openEntry(row.dataset.word, entries, "view-home");
+    };
+    row.addEventListener("click", open);
+    row.addEventListener("keydown", e => { if (e.key === "Enter") open(e); });
+  });
+
+  els.recentList.querySelectorAll(".recent-row-bookmark").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const nowSaved = toggleSavedWord(btn.dataset.word);
+      btn.classList.toggle("saved", nowSaved);
+      btn.setAttribute("aria-pressed", String(nowSaved));
+    });
+  });
 }
 
 // ---------- Search ----------
@@ -603,8 +692,12 @@ function renderSearchResults(query) {
   attachEntryRowListeners(els.searchResults, results, "view-search");
 }
 
+let preSearchView = "view-home";
+
 function openSearch() {
   stopFeaturedRotation();
+  const current = document.querySelector(".view.active");
+  preSearchView = current ? current.id : "view-home";
   document.querySelector(".topbar-backing").classList.add("hidden-for-search");
   switchView("view-search");
   renderSearchResults(els.searchInput.value);
@@ -614,16 +707,12 @@ function openSearch() {
 
 function closeSearch() {
   document.querySelector(".topbar-backing").classList.remove("hidden-for-search");
-  switchView("view-atoz");
-  els.toggleBtns.forEach(b => {
-    const isAtoZ = b.dataset.view === "atoz";
-    b.classList.toggle("active", isAtoZ);
-    b.setAttribute("aria-selected", String(isAtoZ));
-  });
-  document.querySelector(".view-toggle").dataset.active = "atoz";
+  switchView(preSearchView);
+  if (preSearchView === "view-home") startFeaturedRotation();
 }
 
 els.searchBtn.addEventListener("click", openSearch);
+els.topbarSearchTrigger.addEventListener("click", openSearch);
 els.searchCancelBtn.addEventListener("click", closeSearch);
 
 els.searchInput.addEventListener("input", () => {
@@ -643,9 +732,26 @@ document.addEventListener("keydown", e => {
 });
 
 // ---------- View switching ----------
+const BOTTOM_NAV_VIEW_MAP = {
+  "view-home": "home",
+  "view-atoz": "atoz",
+  "view-category": "category",
+  "view-category-detail": "category",
+  "view-about": "about",
+};
+
+function updateBottomNavForView(viewId) {
+  const key = BOTTOM_NAV_VIEW_MAP[viewId];
+  if (!key) return; // entry page / search overlay: leave the nav's last state alone
+  document.querySelectorAll(".bottom-nav-item").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.nav === key);
+  });
+}
+
 function switchView(viewId) {
   els.views.forEach(v => v.classList.toggle("active", v.id === viewId));
   window.scrollTo(0, 0);
+  updateBottomNavForView(viewId);
 }
 
 function restoreScroll(y) {
@@ -661,15 +767,41 @@ function restoreScroll(y) {
   });
 }
 
-els.toggleBtns.forEach(btn => {
-  btn.addEventListener("click", () => {
+// ---------- Nav drawer ----------
+function openDrawer() {
+  els.navDrawer.classList.add("open");
+  els.navDrawerBackdrop.classList.add("visible");
+}
+function closeDrawer() {
+  els.navDrawer.classList.remove("open");
+  els.navDrawerBackdrop.classList.remove("visible");
+}
+els.hamburgerBtn.addEventListener("click", openDrawer);
+els.navDrawerClose.addEventListener("click", closeDrawer);
+els.navDrawerBackdrop.addEventListener("click", closeDrawer);
+
+// ---------- Unified nav targets: drawer items, bottom nav, "View All" links ----------
+function navigateTo(target) {
+  closeDrawer();
+  if (target === "home") { goHome(); return; }
+  if (target === "atoz") { stopFeaturedRotation(); switchView("view-atoz"); return; }
+  if (target === "category") { stopFeaturedRotation(); switchView("view-category"); return; }
+  if (target === "about") { stopFeaturedRotation(); switchView("view-about"); return; }
+  if (target === "bookmarks") {
     stopFeaturedRotation();
-    els.toggleBtns.forEach(b => { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); });
-    btn.classList.add("active");
-    btn.setAttribute("aria-selected", "true");
-    document.querySelector(".view-toggle").dataset.active = btn.dataset.view;
-    switchView(btn.dataset.view === "atoz" ? "view-atoz" : "view-category");
-  });
+    switchView("view-home");
+    document.querySelectorAll(".bottom-nav-item").forEach(b => b.classList.toggle("active", b.dataset.nav === "bookmarks"));
+    requestAnimationFrame(() => {
+      const frame = document.querySelector(".recent-list-frame");
+      if (frame) frame.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    startFeaturedRotation();
+    return;
+  }
+}
+
+document.querySelectorAll("[data-nav]").forEach(el => {
+  el.addEventListener("click", () => navigateTo(el.dataset.nav));
 });
 
 els.backToCategories.addEventListener("click", () => {
@@ -690,7 +822,6 @@ els.brandHomeBtn.addEventListener("keydown", e => { if (e.key === "Enter") goHom
 
 function goHome() {
   stopFeaturedRotation();
-  els.toggleBtns.forEach(b => { b.classList.remove("active"); b.setAttribute("aria-selected", "false"); });
   switchView("view-home");
   startFeaturedRotation();
 }
@@ -698,6 +829,7 @@ function goHome() {
 // ---------- Init ----------
 renderAtoZ();
 renderCategoryGrid();
+renderHomeCategories();
 setupScrollSpy();
 renderFeatured(false);
 renderRecent();
