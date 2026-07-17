@@ -576,7 +576,7 @@ button {
 .az-rail-letter {
   font-family: var(--font-mono);
   font-size: 0.56rem;
-  font-weight: 600;
+  font-weight: 800;
   width: 17px;
   height: 13px;
   display: flex;
@@ -669,18 +669,20 @@ button {
 }
 
 .category-icon {
-  width: 46px;
-  height: 46px;
+  width: 56px;
+  height: 56px;
   border-radius: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
-  font-family: var(--font-display);
-  font-style: italic;
-  font-weight: 600;
-  font-size: 1.3rem;
+  overflow: hidden;
   box-shadow: inset 0 1px 1px rgba(255,255,255,0.06), var(--shadow-xs);
+  background: var(--paper-dim);
+}
+
+.category-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .category-info { min-width: 0; }
@@ -711,65 +713,35 @@ button {
 }
 
 /* per-category accent coding */
-.accent-science .category-icon { background: var(--acc-science-bg); color: var(--acc-science); }
 .accent-science .category-count { background: var(--acc-science-bg); color: var(--acc-science); }
-.accent-mythology .category-icon { background: var(--acc-mythology-bg); color: var(--acc-mythology); }
 .accent-mythology .category-count { background: var(--acc-mythology-bg); color: var(--acc-mythology); }
-.accent-art .category-icon { background: var(--acc-art-bg); color: var(--acc-art); }
 .accent-art .category-count { background: var(--acc-art-bg); color: var(--acc-art); }
-.accent-history .category-icon { background: var(--acc-history-bg); color: var(--acc-history); }
 .accent-history .category-count { background: var(--acc-history-bg); color: var(--acc-history); }
-.accent-geography .category-icon { background: var(--acc-geography-bg); color: var(--acc-geography); }
 .accent-geography .category-count { background: var(--acc-geography-bg); color: var(--acc-geography); }
-.accent-philosophy .category-icon { background: var(--acc-philosophy-bg); color: var(--acc-philosophy); }
 .accent-philosophy .category-count { background: var(--acc-philosophy-bg); color: var(--acc-philosophy); }
-.accent-literature .category-icon { background: var(--acc-literature-bg); color: var(--acc-literature); }
 .accent-literature .category-count { background: var(--acc-literature-bg); color: var(--acc-literature); }
-.accent-music .category-icon { background: var(--acc-music-bg); color: var(--acc-music); }
 .accent-music .category-count { background: var(--acc-music-bg); color: var(--acc-music); }
-.accent-technology .category-icon { background: var(--acc-technology-bg); color: var(--acc-technology); }
 .accent-technology .category-count { background: var(--acc-technology-bg); color: var(--acc-technology); }
-.accent-psychology .category-icon { background: var(--acc-psychology-bg); color: var(--acc-psychology); }
 .accent-psychology .category-count { background: var(--acc-psychology-bg); color: var(--acc-psychology); }
-.accent-biology .category-icon { background: var(--acc-biology-bg); color: var(--acc-biology); }
 .accent-biology .category-count { background: var(--acc-biology-bg); color: var(--acc-biology); }
-.accent-astronomy .category-icon { background: var(--acc-astronomy-bg); color: var(--acc-astronomy); }
 .accent-astronomy .category-count { background: var(--acc-astronomy-bg); color: var(--acc-astronomy); }
-.accent-economics .category-icon { background: var(--acc-economics-bg); color: var(--acc-economics); }
 .accent-economics .category-count { background: var(--acc-economics-bg); color: var(--acc-economics); }
-.accent-politics .category-icon { background: var(--acc-politics-bg); color: var(--acc-politics); }
 .accent-politics .category-count { background: var(--acc-politics-bg); color: var(--acc-politics); }
-.accent-religion .category-icon { background: var(--acc-religion-bg); color: var(--acc-religion); }
 .accent-religion .category-count { background: var(--acc-religion-bg); color: var(--acc-religion); }
-.accent-architecture .category-icon { background: var(--acc-architecture-bg); color: var(--acc-architecture); }
 .accent-architecture .category-count { background: var(--acc-architecture-bg); color: var(--acc-architecture); }
-.accent-film .category-icon { background: var(--acc-film-bg); color: var(--acc-film); }
 .accent-film .category-count { background: var(--acc-film-bg); color: var(--acc-film); }
-.accent-sports .category-icon { background: var(--acc-sports-bg); color: var(--acc-sports); }
 .accent-sports .category-count { background: var(--acc-sports-bg); color: var(--acc-sports); }
-.accent-food .category-icon { background: var(--acc-food-bg); color: var(--acc-food); }
 .accent-food .category-count { background: var(--acc-food-bg); color: var(--acc-food); }
-.accent-fashion .category-icon { background: var(--acc-fashion-bg); color: var(--acc-fashion); }
 .accent-fashion .category-count { background: var(--acc-fashion-bg); color: var(--acc-fashion); }
-.accent-medicine .category-icon { background: var(--acc-medicine-bg); color: var(--acc-medicine); }
 .accent-medicine .category-count { background: var(--acc-medicine-bg); color: var(--acc-medicine); }
-.accent-mathematics .category-icon { background: var(--acc-mathematics-bg); color: var(--acc-mathematics); }
 .accent-mathematics .category-count { background: var(--acc-mathematics-bg); color: var(--acc-mathematics); }
-.accent-law .category-icon { background: var(--acc-law-bg); color: var(--acc-law); }
 .accent-law .category-count { background: var(--acc-law-bg); color: var(--acc-law); }
-.accent-linguistics .category-icon { background: var(--acc-linguistics-bg); color: var(--acc-linguistics); }
 .accent-linguistics .category-count { background: var(--acc-linguistics-bg); color: var(--acc-linguistics); }
-.accent-nature .category-icon { background: var(--acc-nature-bg); color: var(--acc-nature); }
 .accent-nature .category-count { background: var(--acc-nature-bg); color: var(--acc-nature); }
-.accent-warfare .category-icon { background: var(--acc-warfare-bg); color: var(--acc-warfare); }
 .accent-warfare .category-count { background: var(--acc-warfare-bg); color: var(--acc-warfare); }
-.accent-anthropology .category-icon { background: var(--acc-anthropology-bg); color: var(--acc-anthropology); }
 .accent-anthropology .category-count { background: var(--acc-anthropology-bg); color: var(--acc-anthropology); }
-.accent-chemistry .category-icon { background: var(--acc-chemistry-bg); color: var(--acc-chemistry); }
 .accent-chemistry .category-count { background: var(--acc-chemistry-bg); color: var(--acc-chemistry); }
-.accent-exploration .category-icon { background: var(--acc-exploration-bg); color: var(--acc-exploration); }
 .accent-exploration .category-count { background: var(--acc-exploration-bg); color: var(--acc-exploration); }
-.accent-folklore .category-icon { background: var(--acc-folklore-bg); color: var(--acc-folklore); }
 .accent-folklore .category-count { background: var(--acc-folklore-bg); color: var(--acc-folklore); }
 
 /* ============================================
@@ -1039,10 +1011,10 @@ button {
 }
 .home-view-all:hover { gap: 7px; opacity: 0.85; }
 
-/* Home category grid: photo tiles, 4-across on larger phones, 2x rows */
+/* Home category grid: 6 curated tiles, 3-across, reshuffled on every load */
 .home-category-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
 @media (max-width: 420px) {
@@ -1089,14 +1061,14 @@ button {
   font-family: var(--font-body);
   font-size: 0.78rem;
   font-weight: 600;
-  color: var(--ink);
+  color: var(--chrome-ink);
   line-height: 1.15;
 }
 .home-category-card-count {
   display: block;
   font-family: var(--font-mono);
   font-size: 0.6rem;
-  color: var(--gold-soft);
+  color: var(--chrome-gold);
   margin-top: 2px;
 }
 
@@ -1130,9 +1102,9 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(14,12,9,0.55);
-  color: var(--ink);
-  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(36,30,21,0.55);
+  color: var(--chrome-ink);
+  border: 1px solid rgba(216,182,121,0.25);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   cursor: pointer;
@@ -1140,8 +1112,8 @@ button {
   transition: background 0.2s ease, color 0.2s ease;
 }
 .featured-nav-btn:hover {
-  background: rgba(14,12,9,0.8);
-  color: var(--gold-soft);
+  background: rgba(36,30,21,0.78);
+  color: var(--chrome-gold);
 }
 .featured-nav-prev { left: -6px; }
 .featured-nav-next { right: -6px; }
@@ -1427,23 +1399,23 @@ button {
   position: absolute;
   top: 14px;
   left: 14px;
-  background: rgba(14,12,9,0.55);
-  color: var(--ink);
-  border-color: rgba(255,255,255,0.18);
+  background: rgba(36,30,21,0.55);
+  color: var(--chrome-ink);
+  border-color: rgba(216,182,121,0.25);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
 .back-btn-overlay .back-btn-icon {
-  background: rgba(255,255,255,0.16);
-  color: var(--ink);
+  background: rgba(216,182,121,0.2);
+  color: var(--chrome-ink);
 }
 .back-btn-overlay:hover {
-  background: rgba(14,12,9,0.75);
-  color: var(--gold-soft);
-  border-color: rgba(255,255,255,0.3);
+  background: rgba(36,30,21,0.78);
+  color: var(--chrome-gold);
+  border-color: rgba(216,182,121,0.4);
 }
 .back-btn-overlay:hover .back-btn-icon {
-  background: rgba(255,255,255,0.26);
+  background: rgba(216,182,121,0.32);
 }
 
 .entry-page-sheet-inner {

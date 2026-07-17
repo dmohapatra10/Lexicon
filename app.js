@@ -170,27 +170,38 @@ function jumpToLetter(letter, smooth) {
 // along the whole rail (like the iOS Contacts A-Z index), showing a large
 // magnified bubble of the current letter beside the rail while dragging so
 // the user's own finger doesn't block their view of it.
+//
+// Performance note: this is rewritten to avoid layout-forcing calls
+// (elementFromPoint, getBoundingClientRect) inside the pointermove hot path.
+// Letter positions are measured once when the drag starts and then reused
+// via simple arithmetic, with updates batched to one per animation frame,
+// which is what keeps fast top-to-bottom swipes smooth.
+let railIsDragging = false;
+
 function attachAZRailScanning() {
   let isDragging = false;
   let lastLetter = null;
+  let letterSlots = []; // [{ letter, el, centerY }], measured once per drag
+  let pendingY = null;
+  let rafScheduled = false;
 
-  function letterFromPoint(clientX, clientY) {
-    const el = document.elementFromPoint(clientX, clientY);
-    if (el && el.classList && el.classList.contains("az-rail-letter") && el.classList.contains("has-entries")) {
-      return el;
-    }
-    // Finger may drift slightly off individual letter elements while dragging;
-    // fall back to the closest letter by vertical position within the rail.
-    const letters = [...els.azRail.querySelectorAll(".az-rail-letter.has-entries")];
+  function measureSlots() {
+    const railRect = els.azRail.getBoundingClientRect();
+    letterSlots = [...els.azRail.querySelectorAll(".az-rail-letter.has-entries")].map(el => {
+      const rect = el.getBoundingClientRect();
+      return { letter: el.dataset.letter, el, centerY: rect.top + rect.height / 2 };
+    });
+    return railRect;
+  }
+
+  function closestSlotToY(y) {
     let closest = null;
     let closestDist = Infinity;
-    for (const l of letters) {
-      const rect = l.getBoundingClientRect();
-      const midY = rect.top + rect.height / 2;
-      const dist = Math.abs(midY - clientY);
+    for (const slot of letterSlots) {
+      const dist = Math.abs(slot.centerY - y);
       if (dist < closestDist) {
         closestDist = dist;
-        closest = l;
+        closest = slot;
       }
     }
     return closest;
@@ -208,34 +219,54 @@ function attachAZRailScanning() {
     els.azRailMagnifier.classList.remove("visible");
   }
 
-  function handleMove(clientX, clientY, smooth) {
-    const letterEl = letterFromPoint(clientX, clientY);
-    if (!letterEl) return;
-    const letter = letterEl.dataset.letter;
-    showMagnifier(letterEl);
-    if (letter !== lastLetter) {
-      lastLetter = letter;
-      jumpToLetter(letter, smooth);
+  function applyY(y) {
+    if (!letterSlots.length) return;
+    const slot = closestSlotToY(y);
+    if (!slot) return;
+    showMagnifier(slot.el);
+    if (slot.letter !== lastLetter) {
+      lastLetter = slot.letter;
+      jumpToLetter(slot.letter, false);
+    }
+  }
+
+  function flushPending() {
+    rafScheduled = false;
+    if (pendingY !== null) {
+      applyY(pendingY);
+      pendingY = null;
+    }
+  }
+
+  function queueMove(y) {
+    pendingY = y;
+    if (!rafScheduled) {
+      rafScheduled = true;
+      requestAnimationFrame(flushPending);
     }
   }
 
   els.azRail.addEventListener("pointerdown", (e) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
     isDragging = true;
+    railIsDragging = true;
     lastLetter = null;
+    measureSlots();
     els.azRail.setPointerCapture(e.pointerId);
-    handleMove(e.clientX, e.clientY, false);
+    applyY(e.clientY);
     e.preventDefault();
   });
 
   els.azRail.addEventListener("pointermove", (e) => {
     if (!isDragging) return;
-    handleMove(e.clientX, e.clientY, false);
+    queueMove(e.clientY);
   });
 
   function endDrag(e) {
     if (!isDragging) return;
     isDragging = false;
+    railIsDragging = false;
+    pendingY = null;
     hideMagnifier();
     try { els.azRail.releasePointerCapture(e.pointerId); } catch (err) {}
   }
@@ -254,8 +285,13 @@ function setupScrollSpy() {
         els.azRail.querySelectorAll(".az-rail-letter").forEach(el => {
           el.classList.toggle("current", el.dataset.letter === letter);
         });
-        if (currentEl) {
-          currentEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        // Skip auto-scrolling the rail while the user is actively dragging on
+        // it themselves — fighting their gesture with our own scroll is the
+        // main cause of visible lag during a fast swipe. Also use an instant
+        // jump rather than smooth, since a burst of these can otherwise queue
+        // up several overlapping animations in a row.
+        if (currentEl && !railIsDragging) {
+          currentEl.scrollIntoView({ behavior: "auto", block: "nearest" });
         }
       }
     });
@@ -268,11 +304,10 @@ function setupScrollSpy() {
 function renderCategoryGrid() {
   els.categoryGrid.innerHTML = CATEGORIES.map((cat) => {
     const count = ENTRIES.filter(e => e.category === cat.id).length;
-    const initial = cat.name[0];
     return `
       <div class="category-card accent-${cat.accent}" tabindex="0" role="button" data-category="${cat.id}">
         <div class="category-card-left">
-          <span class="category-icon">${initial}</span>
+          <span class="category-icon"><img src="${categoryImagePath(cat.id)}" alt="" loading="lazy"></span>
           <div class="category-info">
             <span class="category-name">${cat.name}</span>
             <span class="category-meta">${cat.description}</span>
@@ -290,12 +325,18 @@ function renderCategoryGrid() {
 }
 
 // ---------- Render: Home category tiles (curated subset, links to full grid) ----------
-const HOME_CATEGORY_IDS = ["science", "history", "mythology", "geography", "art", "literature", "philosophy", "food"];
+function pickRandomCategories(count) {
+  const shuffled = [...CATEGORIES];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, count);
+}
 
 function renderHomeCategories() {
   if (!els.homeCategoryGrid) return;
-  const ids = HOME_CATEGORY_IDS.filter(id => categoryById(id));
-  const cats = ids.length ? ids.map(categoryById) : CATEGORIES.slice(0, 8);
+  const cats = pickRandomCategories(6);
 
   els.homeCategoryGrid.innerHTML = cats.map(cat => {
     const count = ENTRIES.filter(e => e.category === cat.id).length;
