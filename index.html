@@ -64,7 +64,7 @@
     </button>
     <button class="nav-drawer-item" data-nav="bookmarks">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 4h12v17l-6-4-6 4V4z"/></svg>
-      Recently Viewed
+      Bookmarks
     </button>
     <button class="nav-drawer-item" data-nav="about">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
@@ -106,9 +106,6 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
             Recently Viewed
           </p>
-          <button class="home-view-all" data-nav="bookmarks">View All
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 18l6-6-6-6"/></svg>
-          </button>
         </div>
         <div class="recent-list-frame">
           <div class="recent-list" id="recent-list">
@@ -117,6 +114,23 @@
           <div class="recent-empty-state" id="recent-empty-state">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
             <p>Entries you open will appear here.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BOOKMARKS VIEW -->
+    <section id="view-bookmarks" class="view">
+      <div class="content-wrap bookmarks-wrap">
+        <h1 class="bookmarks-title">Bookmarks</h1>
+        <p class="bookmarks-subtitle">Entries you've saved for later.</p>
+        <div class="recent-list-frame">
+          <div class="recent-list" id="bookmarks-list">
+            <!-- bookmarked entries injected here -->
+          </div>
+          <div class="recent-empty-state" id="bookmarks-empty-state">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 4h12v17l-6-4-6 4V4z"/></svg>
+            <p>Tap the bookmark icon on any entry to save it here.</p>
           </div>
         </div>
       </div>
@@ -170,6 +184,9 @@
             <button class="back-btn back-btn-overlay" id="back-from-entry">
               <span class="back-btn-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></span>
               Back
+            </button>
+            <button class="entry-page-bookmark-btn" id="entry-page-bookmark-btn" aria-label="Bookmark this entry" aria-pressed="false">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4h12v17l-6-4-6 4V4z"/></svg>
             </button>
           </div>
           <div class="entry-page-sheet-inner">

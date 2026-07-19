@@ -27,6 +27,9 @@ const els = {
   featuredCardStage: document.getElementById("featured-card-stage"),
   recentList: document.getElementById("recent-list"),
   recentEmptyState: document.getElementById("recent-empty-state"),
+  bookmarksList: document.getElementById("bookmarks-list"),
+  bookmarksEmptyState: document.getElementById("bookmarks-empty-state"),
+  entryPageBookmarkBtn: document.getElementById("entry-page-bookmark-btn"),
   hamburgerBtn: document.getElementById("hamburger-btn"),
   navDrawer: document.getElementById("nav-drawer"),
   navDrawerBackdrop: document.getElementById("nav-drawer-backdrop"),
@@ -35,9 +38,6 @@ const els = {
 };
 
 let activeCategoryId = null;
-let cameFromView = "view-home";
-let cameFromScrollY = 0;
-let categoryGridScrollY = 0;
 
 // ---------- Helpers ----------
 function categoryById(id) {
@@ -148,7 +148,7 @@ function renderAtoZ() {
     }
   });
   els.entryList.innerHTML = html;
-  attachEntryRowListeners(els.entryList, ENTRIES, "view-atoz");
+  attachEntryRowListeners(els.entryList);
   renderAZRail(groups);
 }
 
@@ -357,9 +357,7 @@ function renderHomeCategories() {
   });
 }
 
-function openCategory(catId) {
-  stopFeaturedRotation();
-  categoryGridScrollY = window.scrollY;
+function renderCategoryDetail(catId) {
   activeCategoryId = catId;
   const cat = categoryById(catId);
   const entries = ENTRIES.filter(e => e.category === catId);
@@ -376,26 +374,26 @@ function openCategory(catId) {
     }
   });
   els.categoryEntryList.innerHTML = html;
-  attachEntryRowListeners(els.categoryEntryList, entries, "view-category-detail");
+  attachEntryRowListeners(els.categoryEntryList);
+}
 
-  switchView("view-category-detail");
+function openCategory(catId) {
+  navigate({ view: "categoryDetail", categoryId: catId });
 }
 
 // ---------- Render: Entry page ----------
-function attachEntryRowListeners(container, list, originView) {
+function attachEntryRowListeners(container) {
   container.querySelectorAll(".entry-row").forEach(row => {
-    const open = () => openEntry(row.dataset.word, list, originView);
+    const open = () => openEntry(row.dataset.word);
     row.addEventListener("click", open);
     row.addEventListener("keydown", e => { if (e.key === "Enter") open(); });
   });
 }
 
-function openEntry(word, list, originView) {
-  stopFeaturedRotation();
-  cameFromScrollY = window.scrollY;
-  const entry = list.find(e => e.word === word) || ENTRIES.find(e => e.word === word);
+function renderEntryPage(word) {
+  const entry = ENTRIES.find(e => e.word === word);
+  if (!entry) return;
   const cat = categoryById(entry.category);
-  cameFromView = originView;
 
   els.entryPageHeroImg.src = categoryImagePath(cat.id);
   els.entryPageContent.innerHTML = `
@@ -409,10 +407,30 @@ function openEntry(word, list, originView) {
     </div>
     <p class="entry-page-body">${entry.description}</p>
   `;
-  switchView("view-entry");
   els.entryPageContent.closest(".entry-page").scrollTop = 0;
-  window.scrollTo(0, 0);
+
+  els.entryPageBookmarkBtn.dataset.word = entry.word;
+  const saved = loadSavedWords().includes(entry.word);
+  els.entryPageBookmarkBtn.classList.toggle("saved", saved);
+  els.entryPageBookmarkBtn.setAttribute("aria-pressed", String(saved));
+
   recordRecentlyViewed(entry.word);
+}
+
+els.entryPageBookmarkBtn.addEventListener("click", () => {
+  const word = els.entryPageBookmarkBtn.dataset.word;
+  if (!word) return;
+  const nowSaved = toggleSavedWord(word);
+  els.entryPageBookmarkBtn.classList.toggle("saved", nowSaved);
+  els.entryPageBookmarkBtn.setAttribute("aria-pressed", String(nowSaved));
+  // Recently Viewed and Bookmarks each render their own DOM independently,
+  // so both need an explicit refresh to stay in sync with this toggle.
+  renderRecent();
+  renderBookmarks();
+});
+
+function openEntry(word) {
+  navigate({ view: "entry", word });
 }
 
 // ---------- Home: Featured card carousel ----------
@@ -497,7 +515,7 @@ function attachFeaturedCardListeners() {
   if (!track) return;
 
   track.querySelectorAll(".featured-card").forEach(card => {
-    const open = () => openEntry(card.dataset.word, ENTRIES, "view-home");
+    const open = () => openEntry(card.dataset.word);
     card.addEventListener("click", open);
     card.addEventListener("keydown", e => { if (e.key === "Enter") open(); });
   });
@@ -639,7 +657,7 @@ function renderRecent() {
   els.recentList.querySelectorAll(".recent-row").forEach(row => {
     const open = (e) => {
       if (e.target.closest(".recent-row-bookmark")) return;
-      openEntry(row.dataset.word, entries, "view-home");
+      openEntry(row.dataset.word);
     };
     row.addEventListener("click", open);
     row.addEventListener("keydown", e => { if (e.key === "Enter") open(e); });
@@ -651,6 +669,52 @@ function renderRecent() {
       const nowSaved = toggleSavedWord(btn.dataset.word);
       btn.classList.toggle("saved", nowSaved);
       btn.setAttribute("aria-pressed", String(nowSaved));
+      // The Bookmarks page renders its own DOM independently, so it needs
+      // an explicit refresh too or it'll show stale state next time it's
+      // opened without a full page reload in between.
+      renderBookmarks();
+    });
+  });
+}
+
+// ---------- Bookmarks page ----------
+function renderBookmarks() {
+  const words = loadSavedWords();
+
+  if (!words.length) {
+    els.bookmarksList.innerHTML = "";
+    els.bookmarksEmptyState.classList.add("visible");
+    return;
+  }
+
+  els.bookmarksEmptyState.classList.remove("visible");
+  const entries = words
+    .map(w => ENTRIES.find(e => e.word === w))
+    .filter(Boolean);
+
+  els.bookmarksList.innerHTML = entries.map(recentRowHTML).join("");
+
+  els.bookmarksList.querySelectorAll(".recent-row").forEach(row => {
+    const open = (e) => {
+      if (e.target.closest(".recent-row-bookmark")) return;
+      openEntry(row.dataset.word);
+    };
+    row.addEventListener("click", open);
+    row.addEventListener("keydown", e => { if (e.key === "Enter") open(e); });
+  });
+
+  els.bookmarksList.querySelectorAll(".recent-row-bookmark").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleSavedWord(btn.dataset.word);
+      // This list only ever shows currently-saved entries, so unsaving one
+      // here should drop it from view immediately rather than just
+      // toggling its icon.
+      renderBookmarks();
+      // The Recently Viewed section on Home renders its own DOM
+      // independently, so its bookmark icon needs an explicit refresh too,
+      // or it'll keep showing the entry as saved after this unbookmarks it.
+      renderRecent();
     });
   });
 }
@@ -729,26 +793,18 @@ function renderSearchResults(query) {
   });
 
   els.searchResults.innerHTML = html;
-  attachEntryRowListeners(els.searchResults, results, "view-search");
+  attachEntryRowListeners(els.searchResults);
 }
 
-let preSearchView = "view-home";
-
 function openSearch() {
-  stopFeaturedRotation();
-  const current = document.querySelector(".view.active");
-  preSearchView = current ? current.id : "view-home";
-  document.querySelector(".topbar-backing").classList.add("hidden-for-search");
-  switchView("view-search");
-  renderSearchResults(els.searchInput.value);
-  // focus after the view becomes visible so mobile keyboards open reliably
-  setTimeout(() => els.searchInput.focus(), 50);
+  navigate({ view: "search" });
 }
 
 function closeSearch() {
-  document.querySelector(".topbar-backing").classList.remove("hidden-for-search");
-  switchView(preSearchView);
-  if (preSearchView === "view-home") startFeaturedRotation();
+  // Popping history is the single source of truth for "where do we land";
+  // this keeps the in-app Cancel button, the Escape key, and the phone's
+  // hardware back button all behave identically when search is open.
+  history.back();
 }
 
 els.searchBtn.addEventListener("click", openSearch);
@@ -776,6 +832,7 @@ const BOTTOM_NAV_VIEW_MAP = {
   "view-atoz": "atoz",
   "view-category": "category",
   "view-category-detail": "category",
+  "view-bookmarks": "bookmarks",
   "view-about": "about",
 };
 
@@ -789,7 +846,6 @@ function updateBottomNavForView(viewId) {
 
 function switchView(viewId) {
   els.views.forEach(v => v.classList.toggle("active", v.id === viewId));
-  window.scrollTo(0, 0);
   updateBottomNavForView(viewId);
 }
 
@@ -819,50 +875,129 @@ els.hamburgerBtn.addEventListener("click", openDrawer);
 els.navDrawerClose.addEventListener("click", closeDrawer);
 els.navDrawerBackdrop.addEventListener("click", closeDrawer);
 
+// ============================================================
+// History-backed navigation
+//
+// Every screen the person can land on (home, A-Z, categories,
+// a specific category, an entry, search, about) is represented as a
+// small state object and pushed onto the real browser/WebView history
+// via history.pushState. That means the phone's hardware back button —
+// and the browser's own back button — walks back through the app one
+// screen at a time, all the way to Home, exactly like native app
+// navigation, instead of leaving the page or doing nothing.
+//
+// `navigate(state)` is the one place that both renders a new screen and
+// records it in history. `renderStateView(state)` only renders — it's
+// reused by the popstate handler so going back doesn't push yet another
+// entry on top of itself.
+// ============================================================
+
+function renderStateView(state, opts = {}) {
+  const restoreY = opts.restoreY || 0;
+
+  if (state.view !== "search") {
+    document.querySelector(".topbar-backing").classList.remove("hidden-for-search");
+  }
+
+  switch (state.view) {
+    case "home":
+      switchView("view-home");
+      startFeaturedRotation();
+      restoreScroll(restoreY);
+      break;
+    case "atoz":
+      stopFeaturedRotation();
+      switchView("view-atoz");
+      restoreScroll(restoreY);
+      break;
+    case "category":
+      stopFeaturedRotation();
+      switchView("view-category");
+      restoreScroll(restoreY);
+      break;
+    case "categoryDetail":
+      stopFeaturedRotation();
+      renderCategoryDetail(state.categoryId);
+      switchView("view-category-detail");
+      restoreScroll(restoreY);
+      break;
+    case "entry":
+      stopFeaturedRotation();
+      renderEntryPage(state.word);
+      switchView("view-entry");
+      window.scrollTo(0, 0);
+      break;
+    case "search":
+      stopFeaturedRotation();
+      document.querySelector(".topbar-backing").classList.add("hidden-for-search");
+      switchView("view-search");
+      window.scrollTo(0, 0);
+      renderSearchResults(els.searchInput.value);
+      setTimeout(() => els.searchInput.focus(), 50);
+      break;
+    case "about":
+      stopFeaturedRotation();
+      switchView("view-about");
+      window.scrollTo(0, 0);
+      break;
+    case "bookmarks":
+      stopFeaturedRotation();
+      renderBookmarks();
+      switchView("view-bookmarks");
+      window.scrollTo(0, 0);
+      break;
+    default:
+      switchView("view-home");
+      startFeaturedRotation();
+  }
+}
+
+function navigate(state) {
+  closeDrawer();
+  // Snapshot the scroll position of the screen we're leaving into its own
+  // history entry, so if the person comes back to it later via the back
+  // button, we can restore roughly where they left off.
+  const leaving = history.state || { view: "home" };
+  history.replaceState({ ...leaving, scrollY: window.scrollY }, "");
+  history.pushState(state, "");
+  renderStateView(state, { restoreY: 0 });
+}
+
+window.addEventListener("popstate", (e) => {
+  const state = e.state || { view: "home" };
+  renderStateView(state, { restoreY: state.scrollY || 0 });
+  if (state.view === "home") {
+    document.querySelectorAll(".bottom-nav-item").forEach(b => b.classList.toggle("active", b.dataset.nav === "home"));
+  }
+});
+
+// The very first screen replaces (rather than adds to) the page's initial
+// history entry, so pressing back while on Home leaves the app/page
+// normally instead of getting stuck.
+history.replaceState({ view: "home" }, "");
+
 // ---------- Unified nav targets: drawer items, bottom nav, "View All" links ----------
 function navigateTo(target) {
   closeDrawer();
   if (target === "home") { goHome(); return; }
-  if (target === "atoz") { stopFeaturedRotation(); switchView("view-atoz"); return; }
-  if (target === "category") { stopFeaturedRotation(); switchView("view-category"); return; }
-  if (target === "about") { stopFeaturedRotation(); switchView("view-about"); return; }
-  if (target === "bookmarks") {
-    stopFeaturedRotation();
-    switchView("view-home");
-    document.querySelectorAll(".bottom-nav-item").forEach(b => b.classList.toggle("active", b.dataset.nav === "bookmarks"));
-    requestAnimationFrame(() => {
-      const frame = document.querySelector(".recent-list-frame");
-      if (frame) frame.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-    startFeaturedRotation();
-    return;
-  }
+  if (target === "atoz") { navigate({ view: "atoz" }); return; }
+  if (target === "category") { navigate({ view: "category" }); return; }
+  if (target === "about") { navigate({ view: "about" }); return; }
+  if (target === "bookmarks") { navigate({ view: "bookmarks" }); return; }
 }
 
 document.querySelectorAll("[data-nav]").forEach(el => {
   el.addEventListener("click", () => navigateTo(el.dataset.nav));
 });
 
-els.backToCategories.addEventListener("click", () => {
-  switchView("view-category");
-  restoreScroll(categoryGridScrollY);
-});
-
-els.backFromEntry.addEventListener("click", () => {
-  switchView(cameFromView);
-  restoreScroll(cameFromScrollY);
-  if (cameFromView === "view-home") {
-    startFeaturedRotation();
-  }
-});
+els.backToCategories.addEventListener("click", () => history.back());
+els.backFromEntry.addEventListener("click", () => history.back());
 
 els.brandHomeBtn.addEventListener("click", goHome);
 els.brandHomeBtn.addEventListener("keydown", e => { if (e.key === "Enter") goHome(); });
 
 function goHome() {
-  stopFeaturedRotation();
-  switchView("view-home");
-  startFeaturedRotation();
+  navigate({ view: "home" });
 }
 
 // ---------- Init ----------
@@ -872,4 +1007,5 @@ renderHomeCategories();
 setupScrollSpy();
 renderFeatured(false);
 renderRecent();
+renderBookmarks();
 startFeaturedRotation();
