@@ -578,19 +578,41 @@ function startListening(entry) {
   els.entryPageListenBtn.classList.add("speaking");
   els.entryPageListenBtn.setAttribute("aria-pressed", "true");
 
+  // Tracks the last time we saw real evidence of progress (a word boundary
+  // firing, or an utterance starting/ending). Used by the watchdog below.
+  let lastProgressAt = Date.now();
+  let chunkRetries = 0;
+
   function speakNextChunk() {
     if (currentUtterance !== session) return; // superseded
     if (chunkIndex >= chunks.length) { stopListening(); return; }
 
-    const utterance = new SpeechSynthesisUtterance(chunks[chunkIndex]);
+    chunkRetries = 0;
+    speakChunk(chunks[chunkIndex]);
+  }
+
+  function speakChunk(text) {
+    if (currentUtterance !== session) return;
+
+    const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 0.98;
 
     utterance.onstart = () => {
       if (currentUtterance !== session) return;
+      lastProgressAt = Date.now();
       if (listenStallTimer) { clearTimeout(listenStallTimer); listenStallTimer = null; }
+    };
+    // onboundary fires as each word/sentence is spoken — this is real,
+    // continuous evidence audio is still actually playing, unlike the
+    // `speaking` flag, which some mobile browsers leave `true` even after
+    // audio output has silently died.
+    utterance.onboundary = () => {
+      if (currentUtterance !== session) return;
+      lastProgressAt = Date.now();
     };
     utterance.onend = () => {
       if (currentUtterance !== session) return;
+      lastProgressAt = Date.now();
       chunkIndex += 1;
       speakNextChunk();
     };
@@ -599,9 +621,6 @@ function startListening(entry) {
       stopListening();
     };
 
-    // Some browsers leave the synthesis queue paused after backgrounding
-    // the tab; resume() is a harmless no-op otherwise.
-    window.speechSynthesis.resume();
     window.speechSynthesis.speak(utterance);
 
     // Safety net: if neither onstart nor onerror fires within 1.2s (seen
@@ -621,15 +640,28 @@ function startListening(entry) {
     }, 1200);
   }
 
-  // Chrome's separate 15s "stalls unless nudged" bug can still show up
-  // across a run of short chunks on some builds, so keep a light-touch
-  // pause/resume nudge running for the whole session as a backstop.
+  // Watchdog: some mobile browsers silently stop producing audio mid-chunk
+  // while still reporting `speaking: true` and never firing onboundary,
+  // onend, or onerror again — the tab looks like it's still talking but
+  // nothing is audible. If we see no progress at all for 4 seconds while
+  // supposedly speaking, treat it as a silent failure: cancel and restart
+  // just that one chunk from the beginning (up to 2 retries) rather than
+  // trying pause()/resume(), which is unreliable on mobile and can itself
+  // leave playback stuck paused.
   listenKeepAliveTimer = setInterval(() => {
     if (currentUtterance !== session) return;
     if (!window.speechSynthesis.speaking) return;
-    window.speechSynthesis.pause();
-    window.speechSynthesis.resume();
-  }, 10000);
+    if (Date.now() - lastProgressAt < 4000) return;
+
+    if (chunkRetries < 2) {
+      chunkRetries += 1;
+      lastProgressAt = Date.now();
+      window.speechSynthesis.cancel();
+      speakChunk(chunks[chunkIndex]);
+    } else {
+      stopListening();
+    }
+  }, 1500);
 
   speakNextChunk();
 }
