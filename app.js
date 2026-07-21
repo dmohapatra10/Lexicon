@@ -12,6 +12,9 @@ const els = {
   categoryGrid: document.getElementById("category-grid"),
   categoryDetailTitle: document.getElementById("category-detail-title"),
   categoryDetailDesc: document.getElementById("category-detail-desc"),
+  categoryDetailHeroImg: document.getElementById("category-detail-hero-img"),
+  categoryDetailTag: document.getElementById("category-detail-tag"),
+  categoryDetailCount: document.getElementById("category-detail-count"),
   categoryEntryList: document.getElementById("category-entry-list"),
   entryPageContent: document.getElementById("entry-page-content"),
   entryPageHeroImg: document.getElementById("entry-page-hero-img"),
@@ -30,6 +33,7 @@ const els = {
   bookmarksList: document.getElementById("bookmarks-list"),
   bookmarksEmptyState: document.getElementById("bookmarks-empty-state"),
   entryPageBookmarkBtn: document.getElementById("entry-page-bookmark-btn"),
+  entryPageListenBtn: document.getElementById("entry-page-listen-btn"),
   hamburgerBtn: document.getElementById("hamburger-btn"),
   navDrawer: document.getElementById("nav-drawer"),
   navDrawerBackdrop: document.getElementById("nav-drawer-backdrop"),
@@ -137,14 +141,79 @@ function entryRowHTML(entry) {
   `;
 }
 
-// ---------- Render: A-Z view ----------
+// Small deterministic hash so the same entry always gets the same
+// read-time estimate / badge on every render (no per-entry data for
+// this yet, so we derive stable, plausible values from the word itself).
+function hashString(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = (h * 31 + str.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
+function estimateReadMinutes(entry) {
+  const words = entry.description.trim().split(/\s+/).length;
+  return Math.max(1, Math.round(words / 200));
+}
+
+function entryBadgeHTML(entry) {
+  const bucket = hashString(entry.word) % 4;
+  if (bucket === 0) {
+    return `<span class="explore-card-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.6 7.1.7-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.3l7.1-.7z"/></svg>Popular</span>`;
+  }
+  if (bucket === 1) {
+    return `<span class="explore-card-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L3 14h7l-1 8 11-14h-8z"/></svg>Trending</span>`;
+  }
+  return "";
+}
+
+// Card used on the Explore (A-Z) page: a richer preview with a linked
+// category thumbnail (entries don't have their own images yet, so the
+// entry's category image stands in) plus a read-time / badge meta row.
+function entryCardHTML(entry) {
+  const cat = categoryById(entry.category);
+  const firstSentence = entry.description.split(". ")[0] + ".";
+  const minutes = estimateReadMinutes(entry);
+  return `
+    <div class="entry-row explore-card" tabindex="0" data-word="${entry.word}" role="button" aria-label="Read more about ${entry.word}">
+      <span class="entry-dot accent-dot-${cat.accent}"></span>
+      <div class="explore-card-image">
+        <img src="${categoryImagePath(cat.id)}" alt="${cat.name}" loading="lazy">
+      </div>
+      <div class="explore-card-body">
+        <div class="explore-card-top">
+          <span class="explore-card-headword">${entry.word}</span>
+          <span class="explore-card-tag" style="background:var(--acc-${cat.accent}-bg); color:var(--acc-${cat.accent});">${cat.tag}</span>
+        </div>
+        <p class="explore-card-desc">${firstSentence}</p>
+        <div class="explore-card-meta">
+          <span class="explore-card-meta-item explore-card-meta-readmore">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 5.5C6 4.5 9 4.5 12 6c3-1.5 6-1.5 8 -0.5v13c-2-1-5-1-8 0.5-3-1.5-6-1.5-8 -0.5z"/></svg>
+            Read more
+          </span>
+          <span class="explore-card-meta-item">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+            ${minutes} min read
+          </span>
+          ${entryBadgeHTML(entry)}
+        </div>
+      </div>
+      <button class="explore-card-chevron" tabindex="-1" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+      </button>
+    </div>
+  `;
+}
+
+// ---------- Render: A-Z view (Explore) ----------
 function renderAtoZ() {
   const groups = groupByLetter(ENTRIES);
   let html = "";
   ALPHABET.forEach(letter => {
     if (groups[letter]) {
       html += `<div class="letter-group-heading" id="letter-${letter}"><span class="letter-glyph">${letter}</span><span class="letter-rule"></span></div>`;
-      groups[letter].forEach(entry => { html += entryRowHTML(entry); });
+      groups[letter].forEach(entry => { html += entryCardHTML(entry); });
     }
   });
   els.entryList.innerHTML = html;
@@ -362,15 +431,20 @@ function renderCategoryDetail(catId) {
   const cat = categoryById(catId);
   const entries = ENTRIES.filter(e => e.category === catId);
 
+  els.categoryDetailHeroImg.src = categoryImagePath(cat.id);
+  els.categoryDetailHeroImg.alt = cat.name;
+  els.categoryDetailTag.textContent = cat.tag;
+  els.categoryDetailTag.style.color = `var(--acc-${cat.accent})`;
   els.categoryDetailTitle.textContent = cat.name;
   els.categoryDetailDesc.textContent = cat.description;
+  els.categoryDetailCount.textContent = entries.length;
 
   const groups = groupByLetter(entries);
   let html = "";
   ALPHABET.forEach(letter => {
     if (groups[letter]) {
       html += `<div class="letter-group-heading"><span class="letter-glyph">${letter}</span><span class="letter-rule"></span></div>`;
-      groups[letter].forEach(entry => { html += entryRowHTML(entry); });
+      groups[letter].forEach(entry => { html += entryCardHTML(entry); });
     }
   });
   els.categoryEntryList.innerHTML = html;
@@ -414,7 +488,113 @@ function renderEntryPage(word) {
   els.entryPageBookmarkBtn.classList.toggle("saved", saved);
   els.entryPageBookmarkBtn.setAttribute("aria-pressed", String(saved));
 
+  if (els.entryPageListenBtn) {
+    stopListening();
+    els.entryPageListenBtn.dataset.word = entry.word;
+  }
+
   recordRecentlyViewed(entry.word);
+}
+
+// ---------- Entry page: listen (text-to-speech) ----------
+const speechSupported = "speechSynthesis" in window;
+let currentUtterance = null;
+let listenKeepAliveTimer = null;
+let listenStallTimer = null;
+
+// Chrome (desktop + Android) can report zero voices for a moment after
+// page load, and speak() called before voices are ready sometimes does
+// nothing at all — no sound, no error, no events. Touching getVoices()
+// early and listening for voiceschanged nudges the engine to warm up
+// before the person ever taps the button.
+if (speechSupported) {
+  window.speechSynthesis.getVoices();
+  window.speechSynthesis.addEventListener("voiceschanged", () => window.speechSynthesis.getVoices());
+}
+
+function clearListenTimers() {
+  if (listenKeepAliveTimer) { clearInterval(listenKeepAliveTimer); listenKeepAliveTimer = null; }
+  if (listenStallTimer) { clearTimeout(listenStallTimer); listenStallTimer = null; }
+}
+
+function stopListening() {
+  clearListenTimers();
+  if (speechSupported && (window.speechSynthesis.speaking || window.speechSynthesis.pending)) {
+    window.speechSynthesis.cancel();
+  }
+  currentUtterance = null;
+  if (els.entryPageListenBtn) {
+    els.entryPageListenBtn.classList.remove("speaking");
+    els.entryPageListenBtn.setAttribute("aria-pressed", "false");
+  }
+}
+
+function startListening(entry) {
+  if (!speechSupported) return;
+  window.speechSynthesis.cancel(); // clear any stale queue first
+  const utterance = new SpeechSynthesisUtterance(`${entry.word}. ${entry.description}`);
+  utterance.rate = 0.98;
+
+  utterance.onstart = () => {
+    // Confirmed the engine actually picked it up — no longer "stalled".
+    if (listenStallTimer) { clearTimeout(listenStallTimer); listenStallTimer = null; }
+    // Chrome has a long-standing bug where it silently stops speaking
+    // after ~15s unless the queue is nudged with pause()/resume(). This
+    // keeps long entries (many are 200+ words) playing to the end.
+    listenKeepAliveTimer = setInterval(() => {
+      if (!window.speechSynthesis.speaking) return;
+      window.speechSynthesis.pause();
+      window.speechSynthesis.resume();
+    }, 10000);
+  };
+  utterance.onend = stopListening;
+  utterance.onerror = stopListening;
+
+  currentUtterance = utterance;
+  els.entryPageListenBtn.classList.add("speaking");
+  els.entryPageListenBtn.setAttribute("aria-pressed", "true");
+
+  // Some browsers leave the synthesis queue paused after backgrounding
+  // the tab; resume() is a harmless no-op otherwise.
+  window.speechSynthesis.resume();
+  window.speechSynthesis.speak(utterance);
+
+  // Safety net: if neither onstart nor onerror fires within 1.2s (seen
+  // on some Android WebViews when the first tap races voice loading),
+  // don't leave the button stuck in a "speaking" state forever — retry
+  // once, and if that also goes nowhere, reset so the person can try again.
+  let retried = false;
+  listenStallTimer = setTimeout(function checkStalled() {
+    if (currentUtterance !== utterance) return; // superseded already
+    if (!window.speechSynthesis.speaking && !retried) {
+      retried = true;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+      listenStallTimer = setTimeout(checkStalled, 1200);
+    } else if (!window.speechSynthesis.speaking) {
+      stopListening();
+    }
+  }, 1200);
+}
+
+function toggleListening() {
+  if (!speechSupported) return;
+  const word = els.entryPageListenBtn.dataset.word;
+  const entry = ENTRIES.find(e => e.word === word);
+  if (!entry) return;
+  if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+    stopListening();
+  } else {
+    startListening(entry);
+  }
+}
+
+if (els.entryPageListenBtn) {
+  if (!speechSupported) {
+    els.entryPageListenBtn.hidden = true;
+  } else {
+    els.entryPageListenBtn.addEventListener("click", toggleListening);
+  }
 }
 
 els.entryPageBookmarkBtn.addEventListener("click", () => {
@@ -845,6 +1025,7 @@ function updateBottomNavForView(viewId) {
 }
 
 function switchView(viewId) {
+  if (viewId !== "view-entry") stopListening();
   els.views.forEach(v => v.classList.toggle("active", v.id === viewId));
   updateBottomNavForView(viewId);
 }

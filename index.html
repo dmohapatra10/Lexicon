@@ -148,7 +148,7 @@
     <!-- A-Z VIEW -->
     <section id="view-atoz" class="view">
       <div class="content-wrap">
-        <div class="list-pane" id="entry-list"></div>
+        <div class="list-pane list-pane-cards" id="entry-list"></div>
       </div>
       <!-- Signature element: dictionary thumb-index rail -->
       <nav class="az-rail" id="az-rail" aria-label="Jump to letter"></nav>
@@ -163,15 +163,35 @@
     <!-- CATEGORY DETAIL (A-Z within one category) -->
     <section id="view-category-detail" class="view">
       <div class="category-detail-header">
-        <button class="back-btn" id="back-to-categories">
-          <span class="back-btn-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></span>
-          Categories
-        </button>
-        <h1 class="category-detail-title" id="category-detail-title"></h1>
-        <p class="category-detail-desc" id="category-detail-desc"></p>
+        <div class="category-hero">
+          <img id="category-detail-hero-img" src="" alt="">
+          <div class="category-hero-scrim"></div>
+          <button class="back-btn back-btn-overlay" id="back-to-categories">
+            <span class="back-btn-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></span>
+            Categories
+          </button>
+          <div class="category-hero-content">
+            <span class="category-hero-tag" id="category-detail-tag"></span>
+            <h1 class="category-detail-title" id="category-detail-title"></h1>
+          </div>
+        </div>
+        <div class="category-detail-body">
+          <p class="category-detail-desc" id="category-detail-desc"></p>
+          <div class="category-detail-stats">
+            <span class="category-detail-stat">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5.5C6 4.5 9 4.5 12 6c3-1.5 6-1.5 8-0.5v13c-2-1-5-1-8 0.5-3-1.5-6-1.5-8-0.5z"/></svg>
+              <span id="category-detail-count"></span> entries
+            </span>
+            <span class="category-detail-stat-divider"></span>
+            <span class="category-detail-stat">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16M4 12h16M4 20h16"/></svg>
+              A – Z index
+            </span>
+          </div>
+        </div>
       </div>
       <div class="content-wrap">
-        <div class="list-pane" id="category-entry-list"></div>
+        <div class="list-pane list-pane-cards" id="category-entry-list"></div>
       </div>
     </section>
 
@@ -184,6 +204,10 @@
             <button class="back-btn back-btn-overlay" id="back-from-entry">
               <span class="back-btn-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></span>
               Back
+            </button>
+            <button class="entry-page-listen-btn" id="entry-page-listen-btn" aria-label="Listen to this entry" aria-pressed="false">
+              <svg class="icon-listen" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 9v6h4l5 5V4L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/></svg>
+              <svg class="icon-stop" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" hidden><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
             </button>
             <button class="entry-page-bookmark-btn" id="entry-page-bookmark-btn" aria-label="Bookmark this entry" aria-pressed="false">
               <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4h12v17l-6-4-6 4V4z"/></svg>
