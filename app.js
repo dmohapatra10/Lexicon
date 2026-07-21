@@ -4,6 +4,15 @@
 
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
+// Precompute lowercase search fields once up front instead of recomputing
+// them on every keystroke — with ~1900 entries and long descriptions,
+// re-running toLowerCase() over the whole dataset on each keypress was
+// the main source of search lag, especially on slower phones.
+for (const entry of ENTRIES) {
+  entry._searchWord = entry.word.toLowerCase();
+  entry._searchDesc = entry.description.toLowerCase();
+}
+
 const els = {
   views: document.querySelectorAll(".view"),
   entryList: document.getElementById("entry-list"),
@@ -529,52 +538,100 @@ function stopListening() {
   }
 }
 
+// iOS/mobile Safari (and some Android WebViews) have a long-standing bug
+// where a single long SpeechSynthesisUtterance silently loses audio after
+// roughly 15-30s: `speaking` stays true and no onerror/onend fires, so
+// playback looks alive but nothing is audible. Splitting the text into
+// short sentence-sized utterances and queueing them one after another
+// avoids ever handing the engine a single long utterance, which sidesteps
+// the bug on every platform we've seen it on.
+function splitIntoSpeechChunks(text, maxLen = 170) {
+  const sentences = text.match(/[^.!?]+[.!?]+(\s+|$)|[^.!?]+$/g) || [text];
+  const chunks = [];
+  let current = "";
+  for (const raw of sentences) {
+    const sentence = raw.trim();
+    if (!sentence) continue;
+    if (current && (current.length + sentence.length + 1) > maxLen) {
+      chunks.push(current);
+      current = sentence;
+    } else {
+      current = current ? `${current} ${sentence}` : sentence;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
 function startListening(entry) {
   if (!speechSupported) return;
   window.speechSynthesis.cancel(); // clear any stale queue first
-  const utterance = new SpeechSynthesisUtterance(`${entry.word}. ${entry.description}`);
-  utterance.rate = 0.98;
 
-  utterance.onstart = () => {
-    // Confirmed the engine actually picked it up — no longer "stalled".
-    if (listenStallTimer) { clearTimeout(listenStallTimer); listenStallTimer = null; }
-    // Chrome has a long-standing bug where it silently stops speaking
-    // after ~15s unless the queue is nudged with pause()/resume(). This
-    // keeps long entries (many are 200+ words) playing to the end.
-    listenKeepAliveTimer = setInterval(() => {
-      if (!window.speechSynthesis.speaking) return;
-      window.speechSynthesis.pause();
-      window.speechSynthesis.resume();
-    }, 10000);
-  };
-  utterance.onend = stopListening;
-  utterance.onerror = stopListening;
+  const chunks = splitIntoSpeechChunks(`${entry.word}. ${entry.description}`);
+  let chunkIndex = 0;
+  // Sentinel object shared by every utterance in this listening session so
+  // stopListening()/a new startListening() call can tell a stale, already-
+  // superseded utterance's callbacks not to act.
+  const session = {};
+  currentUtterance = session;
 
-  currentUtterance = utterance;
   els.entryPageListenBtn.classList.add("speaking");
   els.entryPageListenBtn.setAttribute("aria-pressed", "true");
 
-  // Some browsers leave the synthesis queue paused after backgrounding
-  // the tab; resume() is a harmless no-op otherwise.
-  window.speechSynthesis.resume();
-  window.speechSynthesis.speak(utterance);
+  function speakNextChunk() {
+    if (currentUtterance !== session) return; // superseded
+    if (chunkIndex >= chunks.length) { stopListening(); return; }
 
-  // Safety net: if neither onstart nor onerror fires within 1.2s (seen
-  // on some Android WebViews when the first tap races voice loading),
-  // don't leave the button stuck in a "speaking" state forever — retry
-  // once, and if that also goes nowhere, reset so the person can try again.
-  let retried = false;
-  listenStallTimer = setTimeout(function checkStalled() {
-    if (currentUtterance !== utterance) return; // superseded already
-    if (!window.speechSynthesis.speaking && !retried) {
-      retried = true;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
-      listenStallTimer = setTimeout(checkStalled, 1200);
-    } else if (!window.speechSynthesis.speaking) {
+    const utterance = new SpeechSynthesisUtterance(chunks[chunkIndex]);
+    utterance.rate = 0.98;
+
+    utterance.onstart = () => {
+      if (currentUtterance !== session) return;
+      if (listenStallTimer) { clearTimeout(listenStallTimer); listenStallTimer = null; }
+    };
+    utterance.onend = () => {
+      if (currentUtterance !== session) return;
+      chunkIndex += 1;
+      speakNextChunk();
+    };
+    utterance.onerror = () => {
+      if (currentUtterance !== session) return;
       stopListening();
-    }
-  }, 1200);
+    };
+
+    // Some browsers leave the synthesis queue paused after backgrounding
+    // the tab; resume() is a harmless no-op otherwise.
+    window.speechSynthesis.resume();
+    window.speechSynthesis.speak(utterance);
+
+    // Safety net: if neither onstart nor onerror fires within 1.2s (seen
+    // on some Android WebViews when a tap races voice loading), retry
+    // once, then give up and reset so the person can try again.
+    let retried = false;
+    listenStallTimer = setTimeout(function checkStalled() {
+      if (currentUtterance !== session) return;
+      if (!window.speechSynthesis.speaking && !retried) {
+        retried = true;
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utterance);
+        listenStallTimer = setTimeout(checkStalled, 1200);
+      } else if (!window.speechSynthesis.speaking) {
+        stopListening();
+      }
+    }, 1200);
+  }
+
+  // Chrome's separate 15s "stalls unless nudged" bug can still show up
+  // across a run of short chunks on some builds, so keep a light-touch
+  // pause/resume nudge running for the whole session as a backstop.
+  listenKeepAliveTimer = setInterval(() => {
+    if (currentUtterance !== session) return;
+    if (!window.speechSynthesis.speaking) return;
+    window.speechSynthesis.pause();
+    window.speechSynthesis.resume();
+  }, 10000);
+
+  speakNextChunk();
 }
 
 function toggleListening() {
@@ -919,10 +976,9 @@ function searchEntries(query) {
   const descMatches = [];
 
   for (const entry of ENTRIES) {
-    const wordLower = entry.word.toLowerCase();
-    if (wordLower.includes(q)) {
+    if (entry._searchWord.includes(q)) {
       wordMatches.push(entry);
-    } else if (entry.description.toLowerCase().includes(q)) {
+    } else if (entry._searchDesc.includes(q)) {
       descMatches.push(entry);
     }
   }
@@ -990,11 +1046,16 @@ function closeSearch() {
 els.searchBtn.addEventListener("click", openSearch);
 els.searchCancelBtn.addEventListener("click", closeSearch);
 
+let searchDebounceTimer = null;
 els.searchInput.addEventListener("input", () => {
-  renderSearchResults(els.searchInput.value);
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    renderSearchResults(els.searchInput.value);
+  }, 120);
 });
 
 els.searchClearBtn.addEventListener("click", () => {
+  clearTimeout(searchDebounceTimer);
   els.searchInput.value = "";
   renderSearchResults("");
   els.searchInput.focus();
