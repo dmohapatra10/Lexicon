@@ -4,15 +4,6 @@
 
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
-// Precompute lowercase search fields once up front instead of recomputing
-// them on every keystroke — with ~1900 entries and long descriptions,
-// re-running toLowerCase() over the whole dataset on each keypress was
-// the main source of search lag, especially on slower phones.
-for (const entry of ENTRIES) {
-  entry._searchWord = entry.word.toLowerCase();
-  entry._searchDesc = entry.description.toLowerCase();
-}
-
 const els = {
   views: document.querySelectorAll(".view"),
   entryList: document.getElementById("entry-list"),
@@ -356,20 +347,40 @@ function attachAZRailScanning() {
 // Scroll-spy for the rail: highlight current letter
 function setupScrollSpy() {
   const observer = new IntersectionObserver((entries) => {
+    // The observed headings live inside views that start out hidden
+    // (display:none) and use content-visibility:auto on their cards. The
+    // very first time such a view becomes visible, the browser can report
+    // a stale or glitched intersection for a heading nowhere near the
+    // current scroll position. Rather than try to guess which reading is
+    // trustworthy, we simply ignore all of them unless the heading's own
+    // view is genuinely the one currently on screen.
+    const visibleView = document.querySelector(".view.active");
+    if (!visibleView || !(visibleView.id === "view-atoz" || visibleView.id === "view-category-detail")) return;
+
     entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        const letter = entry.target.id.replace("letter-", "");
-        const currentEl = els.azRail.querySelector(`.az-rail-letter[data-letter="${letter}"]`);
-        els.azRail.querySelectorAll(".az-rail-letter").forEach(el => {
-          el.classList.toggle("current", el.dataset.letter === letter);
-        });
-        // Skip auto-scrolling the rail while the user is actively dragging on
-        // it themselves — fighting their gesture with our own scroll is the
-        // main cause of visible lag during a fast swipe. Also use an instant
-        // jump rather than smooth, since a burst of these can otherwise queue
-        // up several overlapping animations in a row.
-        if (currentEl && !railIsDragging) {
-          currentEl.scrollIntoView({ behavior: "auto", block: "nearest" });
+      if (!entry.isIntersecting) return;
+      if (!visibleView.contains(entry.target)) return; // ignore headings in the other (inactive) A-Z list
+
+      const letter = entry.target.id.replace("letter-", "");
+      const currentEl = els.azRail.querySelector(`.az-rail-letter[data-letter="${letter}"]`);
+      els.azRail.querySelectorAll(".az-rail-letter").forEach(el => {
+        el.classList.toggle("current", el.dataset.letter === letter);
+      });
+      // Skip auto-scrolling the rail while the user is actively dragging on
+      // it themselves — fighting their gesture with our own scroll is the
+      // main cause of visible lag during a fast swipe.
+      if (currentEl && !railIsDragging) {
+        // Scroll only the rail's own internal scroll position directly,
+        // rather than calling scrollIntoView() on the element. scrollIntoView
+        // walks every scrollable ancestor to bring the target into view,
+        // and even though the rail is a fixed, independently-scrollable
+        // element, that walk could still end up nudging the main page's
+        // own scroll position too. Setting scrollTop by hand touches only
+        // the rail and nothing else.
+        const railRect = els.azRail.getBoundingClientRect();
+        const elRect = currentEl.getBoundingClientRect();
+        if (elRect.top < railRect.top || elRect.bottom > railRect.bottom) {
+          els.azRail.scrollTop += (elRect.top - railRect.top) - (railRect.height - elRect.height) / 2;
         }
       }
     });
@@ -538,132 +549,52 @@ function stopListening() {
   }
 }
 
-// iOS/mobile Safari (and some Android WebViews) have a long-standing bug
-// where a single long SpeechSynthesisUtterance silently loses audio after
-// roughly 15-30s: `speaking` stays true and no onerror/onend fires, so
-// playback looks alive but nothing is audible. Splitting the text into
-// short sentence-sized utterances and queueing them one after another
-// avoids ever handing the engine a single long utterance, which sidesteps
-// the bug on every platform we've seen it on.
-function splitIntoSpeechChunks(text, maxLen = 170) {
-  const sentences = text.match(/[^.!?]+[.!?]+(\s+|$)|[^.!?]+$/g) || [text];
-  const chunks = [];
-  let current = "";
-  for (const raw of sentences) {
-    const sentence = raw.trim();
-    if (!sentence) continue;
-    if (current && (current.length + sentence.length + 1) > maxLen) {
-      chunks.push(current);
-      current = sentence;
-    } else {
-      current = current ? `${current} ${sentence}` : sentence;
-    }
-  }
-  if (current) chunks.push(current);
-  return chunks;
-}
-
 function startListening(entry) {
   if (!speechSupported) return;
   window.speechSynthesis.cancel(); // clear any stale queue first
+  const utterance = new SpeechSynthesisUtterance(`${entry.word}. ${entry.description}`);
+  utterance.rate = 0.98;
 
-  const chunks = splitIntoSpeechChunks(`${entry.word}. ${entry.description}`);
-  let chunkIndex = 0;
-  // Sentinel object shared by every utterance in this listening session so
-  // stopListening()/a new startListening() call can tell a stale, already-
-  // superseded utterance's callbacks not to act.
-  const session = {};
-  currentUtterance = session;
+  utterance.onstart = () => {
+    // Confirmed the engine actually picked it up — no longer "stalled".
+    if (listenStallTimer) { clearTimeout(listenStallTimer); listenStallTimer = null; }
+    // Chrome has a long-standing bug where it silently stops speaking
+    // after ~15s unless the queue is nudged with pause()/resume(). This
+    // keeps long entries (many are 200+ words) playing to the end.
+    listenKeepAliveTimer = setInterval(() => {
+      if (!window.speechSynthesis.speaking) return;
+      window.speechSynthesis.pause();
+      window.speechSynthesis.resume();
+    }, 10000);
+  };
+  utterance.onend = stopListening;
+  utterance.onerror = stopListening;
 
+  currentUtterance = utterance;
   els.entryPageListenBtn.classList.add("speaking");
   els.entryPageListenBtn.setAttribute("aria-pressed", "true");
 
-  // Tracks the last time we saw real evidence of progress (a word boundary
-  // firing, or an utterance starting/ending). Used by the watchdog below.
-  let lastProgressAt = Date.now();
-  let chunkRetries = 0;
+  // Some browsers leave the synthesis queue paused after backgrounding
+  // the tab; resume() is a harmless no-op otherwise.
+  window.speechSynthesis.resume();
+  window.speechSynthesis.speak(utterance);
 
-  function speakNextChunk() {
-    if (currentUtterance !== session) return; // superseded
-    if (chunkIndex >= chunks.length) { stopListening(); return; }
-
-    chunkRetries = 0;
-    speakChunk(chunks[chunkIndex]);
-  }
-
-  function speakChunk(text) {
-    if (currentUtterance !== session) return;
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.98;
-
-    utterance.onstart = () => {
-      if (currentUtterance !== session) return;
-      lastProgressAt = Date.now();
-      if (listenStallTimer) { clearTimeout(listenStallTimer); listenStallTimer = null; }
-    };
-    // onboundary fires as each word/sentence is spoken — this is real,
-    // continuous evidence audio is still actually playing, unlike the
-    // `speaking` flag, which some mobile browsers leave `true` even after
-    // audio output has silently died.
-    utterance.onboundary = () => {
-      if (currentUtterance !== session) return;
-      lastProgressAt = Date.now();
-    };
-    utterance.onend = () => {
-      if (currentUtterance !== session) return;
-      lastProgressAt = Date.now();
-      chunkIndex += 1;
-      speakNextChunk();
-    };
-    utterance.onerror = () => {
-      if (currentUtterance !== session) return;
-      stopListening();
-    };
-
-    window.speechSynthesis.speak(utterance);
-
-    // Safety net: if neither onstart nor onerror fires within 1.2s (seen
-    // on some Android WebViews when a tap races voice loading), retry
-    // once, then give up and reset so the person can try again.
-    let retried = false;
-    listenStallTimer = setTimeout(function checkStalled() {
-      if (currentUtterance !== session) return;
-      if (!window.speechSynthesis.speaking && !retried) {
-        retried = true;
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(utterance);
-        listenStallTimer = setTimeout(checkStalled, 1200);
-      } else if (!window.speechSynthesis.speaking) {
-        stopListening();
-      }
-    }, 1200);
-  }
-
-  // Watchdog: some mobile browsers silently stop producing audio mid-chunk
-  // while still reporting `speaking: true` and never firing onboundary,
-  // onend, or onerror again — the tab looks like it's still talking but
-  // nothing is audible. If we see no progress at all for 4 seconds while
-  // supposedly speaking, treat it as a silent failure: cancel and restart
-  // just that one chunk from the beginning (up to 2 retries) rather than
-  // trying pause()/resume(), which is unreliable on mobile and can itself
-  // leave playback stuck paused.
-  listenKeepAliveTimer = setInterval(() => {
-    if (currentUtterance !== session) return;
-    if (!window.speechSynthesis.speaking) return;
-    if (Date.now() - lastProgressAt < 4000) return;
-
-    if (chunkRetries < 2) {
-      chunkRetries += 1;
-      lastProgressAt = Date.now();
+  // Safety net: if neither onstart nor onerror fires within 1.2s (seen
+  // on some Android WebViews when the first tap races voice loading),
+  // don't leave the button stuck in a "speaking" state forever — retry
+  // once, and if that also goes nowhere, reset so the person can try again.
+  let retried = false;
+  listenStallTimer = setTimeout(function checkStalled() {
+    if (currentUtterance !== utterance) return; // superseded already
+    if (!window.speechSynthesis.speaking && !retried) {
+      retried = true;
       window.speechSynthesis.cancel();
-      speakChunk(chunks[chunkIndex]);
-    } else {
+      window.speechSynthesis.speak(utterance);
+      listenStallTimer = setTimeout(checkStalled, 1200);
+    } else if (!window.speechSynthesis.speaking) {
       stopListening();
     }
-  }, 1500);
-
-  speakNextChunk();
+  }, 1200);
 }
 
 function toggleListening() {
@@ -1008,9 +939,10 @@ function searchEntries(query) {
   const descMatches = [];
 
   for (const entry of ENTRIES) {
-    if (entry._searchWord.includes(q)) {
+    const wordLower = entry.word.toLowerCase();
+    if (wordLower.includes(q)) {
       wordMatches.push(entry);
-    } else if (entry._searchDesc.includes(q)) {
+    } else if (entry.description.toLowerCase().includes(q)) {
       descMatches.push(entry);
     }
   }
@@ -1078,16 +1010,11 @@ function closeSearch() {
 els.searchBtn.addEventListener("click", openSearch);
 els.searchCancelBtn.addEventListener("click", closeSearch);
 
-let searchDebounceTimer = null;
 els.searchInput.addEventListener("input", () => {
-  clearTimeout(searchDebounceTimer);
-  searchDebounceTimer = setTimeout(() => {
-    renderSearchResults(els.searchInput.value);
-  }, 120);
+  renderSearchResults(els.searchInput.value);
 });
 
 els.searchClearBtn.addEventListener("click", () => {
-  clearTimeout(searchDebounceTimer);
   els.searchInput.value = "";
   renderSearchResults("");
   els.searchInput.focus();
